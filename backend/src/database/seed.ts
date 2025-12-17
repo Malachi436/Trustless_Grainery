@@ -16,7 +16,7 @@ async function seed() {
       UserRole.PLATFORM_ADMIN,
       null
     );
-    logger.info('✅ Created admin user');
+    logger.info('✅ Created admin user', { adminId: admin.id });
 
     // Create warehouse
     const warehouseId = uuidv4();
@@ -54,7 +54,7 @@ async function seed() {
 
     await authService.assignAttendantToWarehouse(attendant.id, warehouseId);
 
-    logger.info('✅ Created attendant user');
+    logger.info('✅ Created attendant user', { attendantId: attendant.id });
 
     logger.info(`
 ╔══════════════════════════════════════════╗

@@ -112,8 +112,10 @@ CREATE TABLE request_projections (
   approved_at TIMESTAMP NULL,
   rejected_by UUID NULL,
   rejected_at TIMESTAMP NULL,
+  rejection_reason TEXT NULL,
   executed_by UUID NULL,
   executed_at TIMESTAMP NULL,
+  photo_url TEXT NULL,
   event_ids UUID[] NOT NULL DEFAULT '{}',
   FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
   FOREIGN KEY (requested_by) REFERENCES users(id)

@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../config/database';
 import logger from '../config/logger';
@@ -94,13 +94,13 @@ export class AuthService {
       warehouse_id: user.warehouse_id,
     };
 
-    const accessToken = jwt.sign(tokenPayload, JWT_SECRET, {
+    const accessToken = jwt.sign(tokenPayload, JWT_SECRET as string, {
       expiresIn: JWT_EXPIRES_IN,
-    });
+    } as SignOptions);
 
-    const refreshToken = jwt.sign(tokenPayload, JWT_REFRESH_SECRET, {
+    const refreshToken = jwt.sign(tokenPayload, JWT_REFRESH_SECRET as string, {
       expiresIn: JWT_REFRESH_EXPIRES_IN,
-    });
+    } as SignOptions);
 
     const warehouse = row.warehouse_id
       ? { id: row.warehouse_id, name: row.warehouse_name }
@@ -124,8 +124,8 @@ export class AuthService {
           role: payload.role,
           warehouse_id: payload.warehouse_id,
         },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
+        JWT_SECRET as string,
+        { expiresIn: JWT_EXPIRES_IN } as SignOptions
       );
 
       return newAccessToken;
