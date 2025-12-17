@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Trustless Granary",
+    "slug": "trustless-granary",
+    "scheme": "trustless-granary",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trustless.granary"
+    },
+    "android": {
+      "package": "com.trustless.granary"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
