@@ -35,11 +35,9 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Store auth token
       localStorage.setItem('adminToken', data.data.accessToken);
       localStorage.setItem('adminUser', JSON.stringify(data.data.user));
 
-      // Redirect to dashboard
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid credentials');
@@ -49,24 +47,74 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div 
+      className="min-h-screen flex items-center justify-center p-6" 
+      style={{ 
+        background: 'linear-gradient(135deg, #fafaf8 0%, #efece6 100%)'
+      }}
+    >
       <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div 
+            className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-5 shadow-lg" 
+            style={{ 
+              background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)'
+            }}
+          >
+            <svg 
+              className="w-11 h-11" 
+              style={{ color: '#1e1e1e' }} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={1.8} 
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" 
+              />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Trustless Granary</h1>
-          <p className="text-gray-500">Platform Admin</p>
+          <h1 
+            className="text-3xl font-medium mb-2" 
+            style={{ 
+              color: '#1e1e1e',
+              letterSpacing: '-0.02em'
+            }}
+          >
+            Trustless Granary
+          </h1>
+          <p 
+            className="text-sm font-medium" 
+            style={{ 
+              color: '#6b6f69',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase'
+            }}
+          >
+            Platform Admin
+          </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+        {/* Glass Card */}
+        <div 
+          className="rounded-2xl p-8 shadow-xl"
+          style={{
+            background: 'rgba(255, 255, 255, 0.75)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(138, 156, 123, 0.2)'
+          }}
+        >
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+              <label 
+                htmlFor="phone" 
+                className="block text-sm font-medium mb-2.5" 
+                style={{ color: '#3a3f38' }}
+              >
                 Phone Number
               </label>
               <input
@@ -74,14 +122,32 @@ export default function LoginPage() {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 rounded-xl transition-all duration-200"
+                style={{ 
+                  border: '1px solid rgba(138, 156, 123, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.6)',
+                  color: '#1e1e1e',
+                  fontSize: '15px'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#8fcd84';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(143, 205, 132, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(138, 156, 123, 0.3)';
+                  e.target.style.boxShadow = 'none';
+                }}
                 placeholder="0200000000"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="pin" className="block text-sm font-medium text-gray-700 mb-2">
+              <label 
+                htmlFor="pin" 
+                className="block text-sm font-medium mb-2.5" 
+                style={{ color: '#3a3f38' }}
+              >
                 PIN
               </label>
               <input
@@ -89,32 +155,80 @@ export default function LoginPage() {
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="Enter PIN"
+                className="w-full px-4 py-3 rounded-xl transition-all duration-200"
+                style={{ 
+                  border: '1px solid rgba(138, 156, 123, 0.3)',
+                  background: 'rgba(255, 255, 255, 0.6)',
+                  color: '#1e1e1e',
+                  fontSize: '15px'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#8fcd84';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(143, 205, 132, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(138, 156, 123, 0.3)';
+                  e.target.style.boxShadow = 'none';
+                }}
+                placeholder="Enter 4-digit PIN"
                 maxLength={4}
                 required
               />
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-sm text-red-600">{error}</p>
+              <div 
+                className="p-3.5 rounded-xl" 
+                style={{ 
+                  background: 'rgba(184, 92, 92, 0.08)',
+                  border: '1px solid rgba(184, 92, 92, 0.3)'
+                }}
+              >
+                <p className="text-sm font-medium" style={{ color: '#b85c5c' }}>
+                  {error}
+                </p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl bg-primary hover:bg-primary-dark text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3.5 px-4 rounded-xl font-medium transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)',
+                color: '#1e1e1e',
+                fontSize: '15px',
+                letterSpacing: '0.01em'
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading) {
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(143, 205, 132, 0.4)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+              }}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
         </div>
 
-        <div className="mt-6 text-center">
-          <p className="text-xs text-gray-400">
-            Admin access only • Unauthorized access prohibited
+        <div className="mt-8 text-center">
+          <p className="text-xs font-medium" style={{ color: '#6b6f69', letterSpacing: '0.03em' }}>
+            Admin access only · Unauthorized access prohibited
           </p>
         </div>
       </div>

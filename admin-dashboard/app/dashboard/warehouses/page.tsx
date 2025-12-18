@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import GlassCard from '@/components/GlassCard';
 import { API_ENDPOINTS } from '@/lib/api-config';
-import type { Warehouse } from '@/lib/types';
+
+interface Warehouse {
+  id: string;
+  name: string;
+  location: string;
+  status: 'SETUP' | 'GENESIS_PENDING' | 'ACTIVE' | 'SUSPENDED';
+  ownerId: string | null;
+  ownerName?: string;
+  createdAt: string;
+}
 
 export default function WarehousesPage() {
   const router = useRouter();
@@ -46,8 +53,9 @@ export default function WarehousesPage() {
 
   const handleCreateWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (!newWarehouse.name || !newWarehouse.location) return;
 
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('adminToken');
       const response = await fetch(API_ENDPOINTS.ADMIN_WAREHOUSES, {
@@ -74,133 +82,183 @@ export default function WarehousesPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'bg-green-100 text-green-800 border-green-200';
-      case 'GENESIS_PENDING': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'SUSPENDED': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'ACTIVE': return 'bg-success/20 text-success';
+      case 'GENESIS_PENDING': return 'bg-warning/20 text-warning';
+      case 'SUSPENDED': return 'bg-danger/20 text-danger';
+      default: return 'bg-stone/20 text-text-muted';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-agricultural-beige via-agricultural-sand to-agricultural-clay">
+    <div style={{ background: 'linear-gradient(135deg, #fafaf8 0%, #efece6 100%)', minHeight: '100vh' }}>
       {/* Header */}
-      <header className="glass-panel border-b border-white/50">
+      <header 
+        className="border-b sticky top-0 z-50"
+        style={{ 
+          background: 'rgba(239, 236, 230, 0.8)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderColor: 'rgba(138, 156, 123, 0.2)'
+        }}
+      >
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="text-agricultural-earth hover:text-gray-900">
-              ← Back
-            </Link>
-            <div className="text-2xl">🏢</div>
-            <h1 className="text-xl font-bold text-gray-900">Warehouse Management</h1>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="p-2 rounded-lg transition-colors"
+              style={{ background: 'rgba(200, 185, 166, 0.3)' }}
+            >
+              <svg className="w-5 h-5" style={{ color: '#3a3f38' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-lg font-medium" style={{ color: '#1e1e1e' }}>Warehouse Management</h1>
+              <p className="text-xs" style={{ color: '#6b6f69' }}>Create and manage warehouses</p>
+            </div>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 rounded-xl bg-agricultural-green hover:bg-agricultural-green/90 text-white font-semibold transition-all shadow-lg"
+            className="px-4 py-2 rounded-lg font-medium transition-all"
+            style={{ 
+              background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)',
+              color: '#1e1e1e'
+            }}
           >
-            + Create Warehouse
+            + New Warehouse
           </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         {isLoading ? (
           <div className="text-center py-12">
-            <div className="text-4xl mb-4">🏢</div>
-            <p className="text-agricultural-earth">Loading warehouses...</p>
+            <div className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-4" 
+                 style={{ borderColor: '#d9d9d5', borderTopColor: '#8fcd84' }} />
+            <p style={{ color: '#6b6f69' }}>Loading warehouses...</p>
           </div>
         ) : warehouses.length === 0 ? (
-          <GlassCard className="p-12 text-center">
-            <div className="text-5xl mb-4">🏢</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No Warehouses Yet</h3>
-            <p className="text-agricultural-earth mb-6">Create your first warehouse to get started</p>
+          <div 
+            className="rounded-2xl p-12 text-center"
+            style={{
+              background: 'rgba(255, 255, 255, 0.75)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(138, 156, 123, 0.2)'
+            }}
+          >
+            <svg className="w-16 h-16 mx-auto mb-4 opacity-40" style={{ color: '#6b6f69' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <p className="text-lg font-medium mb-2" style={{ color: '#1e1e1e' }}>No warehouses yet</p>
+            <p className="mb-6" style={{ color: '#6b6f69' }}>Create your first warehouse to get started</p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-6 py-3 rounded-xl bg-agricultural-green hover:bg-agricultural-green/90 text-white font-semibold transition-all shadow-lg"
+              className="px-6 py-2.5 rounded-lg font-medium"
+              style={{ 
+                background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)',
+                color: '#1e1e1e'
+              }}
             >
-              Create First Warehouse
+              Create Warehouse
             </button>
-          </GlassCard>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {warehouses.map((warehouse) => (
-              <GlassCard key={warehouse.id} className="p-6 hover:shadow-xl transition-all">
+              <div
+                key={warehouse.id}
+                className="rounded-2xl p-6 transition-all hover:scale-[1.02] cursor-pointer"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.75)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(138, 156, 123, 0.2)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)'
+                }}
+              >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">{warehouse.name}</h3>
-                    <p className="text-sm text-agricultural-earth">{warehouse.location}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" 
+                         style={{ background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)' }}>
+                      <svg className="w-6 h-6" style={{ color: '#1e1e1e' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-lg text-xs font-semibold border ${getStatusColor(warehouse.status)}`}>
+                  <span className={`px-3 py-1 rounded-lg text-xs font-medium ${getStatusColor(warehouse.status)}`}>
                     {warehouse.status.replace('_', ' ')}
                   </span>
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-agricultural-earth">Owner:</span>
-                    <span className="font-medium text-gray-900">
-                      {warehouse.ownerName || 'Not assigned'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-agricultural-earth">Attendants:</span>
-                    <span className="font-medium text-gray-900">
-                      {warehouse.attendants?.length || 0}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-agricultural-earth">Created:</span>
-                    <span className="font-medium text-gray-900">
-                      {new Date(warehouse.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
+                <h3 className="text-lg font-medium mb-1" style={{ color: '#1e1e1e' }}>{warehouse.name}</h3>
+                <p className="text-sm mb-4" style={{ color: '#6b6f69' }}>{warehouse.location}</p>
 
-                <div className="flex gap-2">
-                  <button className="flex-1 px-4 py-2 rounded-lg bg-agricultural-green-light text-agricultural-green font-medium hover:bg-agricultural-green/10 transition-all">
-                    View Details
-                  </button>
-                  {warehouse.status !== 'SUSPENDED' && (
-                    <button className="px-4 py-2 rounded-lg bg-red-50 text-red-600 font-medium hover:bg-red-100 transition-all">
-                      Suspend
-                    </button>
-                  )}
+                <div className="pt-4 border-t" style={{ borderColor: 'rgba(138, 156, 123, 0.2)' }}>
+                  <div className="flex items-center gap-2 text-xs" style={{ color: '#6b6f69' }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {new Date(warehouse.createdAt).toLocaleDateString()}
+                  </div>
                 </div>
-              </GlassCard>
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Create Warehouse Modal */}
+      {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <GlassCard className="w-full max-w-md p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Warehouse</h2>
-            <form onSubmit={handleCreateWarehouse} className="space-y-4">
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-6 z-50"
+          style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-8"
+            style={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(138, 156, 123, 0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-medium mb-6" style={{ color: '#1e1e1e' }}>Create New Warehouse</h2>
+
+            <form onSubmit={handleCreateWarehouse} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
                   Warehouse Name
                 </label>
                 <input
                   type="text"
                   value={newWarehouse.name}
                   onChange={(e) => setNewWarehouse({ ...newWarehouse, name: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-agricultural-clay bg-white/50 focus:outline-none focus:ring-2 focus:ring-agricultural-green focus:border-transparent"
-                  placeholder="Main Warehouse"
+                  className="w-full px-4 py-2.5 rounded-lg transition-all"
+                  style={{ 
+                    border: '1px solid rgba(138, 156, 123, 0.3)',
+                    background: 'rgba(255, 255, 255, 0.6)',
+                    color: '#1e1e1e'
+                  }}
+                  placeholder="e.g., Main Storage Facility"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
                   Location
                 </label>
                 <input
                   type="text"
                   value={newWarehouse.location}
                   onChange={(e) => setNewWarehouse({ ...newWarehouse, location: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-agricultural-clay bg-white/50 focus:outline-none focus:ring-2 focus:ring-agricultural-green focus:border-transparent"
-                  placeholder="Accra, Ghana"
+                  className="w-full px-4 py-2.5 rounded-lg transition-all"
+                  style={{ 
+                    border: '1px solid rgba(138, 156, 123, 0.3)',
+                    background: 'rgba(255, 255, 255, 0.6)',
+                    color: '#1e1e1e'
+                  }}
+                  placeholder="e.g., Accra, Ghana"
                   required
                 />
               </div>
@@ -209,20 +267,28 @@ export default function WarehousesPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/50 hover:bg-white/70 text-gray-700 font-semibold transition-all"
+                  className="flex-1 py-2.5 rounded-lg font-medium transition-all"
+                  style={{ 
+                    background: 'rgba(200, 185, 166, 0.4)',
+                    color: '#3a3f38'
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-3 rounded-xl bg-agricultural-green hover:bg-agricultural-green/90 text-white font-semibold transition-all disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)',
+                    color: '#1e1e1e'
+                  }}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create'}
+                  {isSubmitting ? 'Creating...' : 'Create Warehouse'}
                 </button>
               </div>
             </form>
-          </GlassCard>
+          </div>
         </div>
       )}
     </div>
