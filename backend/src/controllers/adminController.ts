@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import authService from '../services/AuthService';
 import warehouseService from '../services/WarehouseService';
+import db from '../config/database';
 import { UserRole, WarehouseStatus } from '../types/enums';
 import { AppError } from '../middleware/errorHandler';
 
@@ -168,7 +169,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
     query += ' ORDER BY u.created_at DESC';
 
-    const result = await authService['db'].query(query, params);
+    const result = await db.query(query, params);
 
     res.json({
       success: true,
