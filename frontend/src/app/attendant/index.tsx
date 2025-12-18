@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,43 @@ import {
   ScrollView,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 export default function AttendantHomeScreen() {
   const router = useRouter();
-  const logout = useAuthStore((s) => s.logout);
+  const { user, logout, accessToken } = useAuthStore();
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(API_ENDPOINTS.ATTENDANT_HOME, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setStats(data.data);
+      }
+    } catch (error) {
+      console.error('Fetch stats error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -46,7 +75,7 @@ export default function AttendantHomeScreen() {
             </View>
             <View>
               <Text style={styles.welcomeText}>Welcome,</Text>
-              <Text style={styles.userName}>James Okonkwo</Text>
+              <Text style={styles.userName}>{user?.name || 'Attendant'}</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -65,11 +94,11 @@ export default function AttendantHomeScreen() {
           <Text style={styles.sectionTitle}>Today's Activity</Text>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>3</Text>
+              <Text style={styles.statNumber}>{stats?.entriesLogged || 0}</Text>
               <Text style={styles.statLabel}>Entries Logged</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statNumber}>2</Text>
+              <Text style={styles.statNumber}>{stats?.dispatched || 0}</Text>
               <Text style={styles.statLabel}>Dispatched</Text>
             </View>
           </View>

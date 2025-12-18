@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS, logApiUrl } from '@/lib/api-config';
 
 type StockItem = {
   cropType: string;
@@ -26,7 +27,7 @@ type DashboardData = {
 
 export default function OwnerHomeScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, accessToken } = useAuthStore();
   const [showAllCrops, setShowAllCrops] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,10 +39,14 @@ export default function OwnerHomeScreen() {
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      // TODO: Replace with actual JWT token from auth store
-      const response = await fetch('http://localhost:4000/api/owner/dashboard', {
+      
+      // Log API URL for debugging
+      logApiUrl();
+      
+      // Use real JWT token from auth store
+      const response = await fetch(API_ENDPOINTS.OWNER_DASHBOARD, {
         headers: {
-          'Authorization': `Bearer ${user?.id}`, // TODO: Use actual JWT token
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
@@ -196,6 +201,17 @@ export default function OwnerHomeScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+            )}
+            
+            {/* Genesis Button - Show when no stock */}
+            {totalBags === 0 && (
+              <TouchableOpacity
+                style={styles.genesisButton}
+                onPress={() => router.push('/owner/genesis-confirmation')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.genesisButtonText}>⚡ Activate Warehouse</Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -409,6 +425,21 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  genesisButton: {
+    marginTop: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  genesisButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   activityRow: {
     flexDirection: 'row',

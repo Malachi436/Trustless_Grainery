@@ -7,14 +7,17 @@ interface AuthStore {
   // State
   user: User | null;
   warehouse: Warehouse | null;
+  accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 
   // Actions
   setUser: (user: User | null) => void;
   setWarehouse: (warehouse: Warehouse | null) => void;
+  setTokens: (accessToken: string, refreshToken: string) => void;
   setLoading: (loading: boolean) => void;
-  login: (user: User, warehouse: Warehouse) => void;
+  login: (user: User, warehouse: Warehouse, accessToken: string, refreshToken: string) => void;
   logout: () => void;
 }
 
@@ -23,17 +26,22 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       warehouse: null,
+      accessToken: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: true,
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setWarehouse: (warehouse) => set({ warehouse }),
+      setTokens: (accessToken, refreshToken) => set({ accessToken, refreshToken }),
       setLoading: (isLoading) => set({ isLoading }),
 
-      login: (user, warehouse) =>
+      login: (user, warehouse, accessToken, refreshToken) =>
         set({
           user,
           warehouse,
+          accessToken,
+          refreshToken,
           isAuthenticated: true,
           isLoading: false,
         }),
@@ -42,6 +50,8 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           warehouse: null,
+          accessToken: null,
+          refreshToken: null,
           isAuthenticated: false,
           isLoading: false,
         }),
@@ -52,6 +62,8 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (state) => ({
         user: state.user,
         warehouse: state.warehouse,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

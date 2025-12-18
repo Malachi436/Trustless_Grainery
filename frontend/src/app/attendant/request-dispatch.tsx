@@ -11,16 +11,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 const CROP_TYPES = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
 
 export default function RequestDispatchScreen() {
   const router = useRouter();
+  const { accessToken } = useAuthStore();
   const [cropType, setCropType] = useState('');
   const [quantity, setQuantity] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [showCropPicker, setShowCropPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   console.log('RequestDispatchScreen rendering...');
   console.log('Current state:', { cropType, quantity, buyerName, buyerPhone });
@@ -55,17 +59,46 @@ Phone: ${buyerPhone}`,
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Submit',
-          onPress: () => {
-            Alert.alert(
-              'Request Submitted',
-              'Your dispatch request has been sent to the owner for approval. You will be notified once approved.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => router.back(),
+          onPress: async () => {
+            try {
+              setIsSubmitting(true);
+              
+              const response = await fetch(API_ENDPOINTS.ATTENDANT_REQUEST_DISPATCH, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken}`,
                 },
-              ]
-            );
+                body: JSON.stringify({
+                  cropType: cropType.toLowerCase(),
+                  bags: parseInt(quantity),
+                  buyerName,
+                  buyerPhone,
+                }),
+              });
+
+              const data = await response.json();
+
+              if (data.success) {
+                Alert.alert(
+                  'Request Submitted',
+                  'Your dispatch request has been sent to the owner for approval. You will be notified once approved.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => router.back(),
+                    },
+                  ]
+                );
+              } else {
+                throw new Error(data.error || 'Failed to submit request');
+              }
+            } catch (error: any) {
+              console.error('Request dispatch error:', error);
+              Alert.alert('Error', error.message || 'Failed to submit dispatch request');
+            } finally {
+              setIsSubmitting(false);
+            }
           },
         },
       ]

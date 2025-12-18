@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import type { User, Warehouse } from '@/lib/types';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 type RoleTab = 'attendant' | 'owner';
 
@@ -24,81 +25,52 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const pinInputRef = useRef<TextInput>(null);
   const login = useAuthStore((s) => s.login);
   const router = useRouter();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError(null);
+    setIsLoading(true);
 
-    console.log('=== LOGIN ATTEMPT ===');
-    console.log('Selected Role:', selectedRole);
-    console.log('Phone:', phone);
-    console.log('PIN:', pin);
+    try {
+      // Call real backend login API
+      const response = await fetch(API_ENDPOINTS.LOGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone,
+          pin,
+          role: selectedRole === 'owner' ? 'OWNER' : 'ATTENDANT',
+        }),
+      });
 
-    // Test credentials
-    const testAccounts = {
-      attendant: {
-        phone: '0241234567',
-        pin: '1234',
-        user: {
-          id: '1',
-          name: 'James Okonkwo',
-          phone: '0241234567',
-          role: 'attendant' as const,
-        },
-        warehouse: {
-          id: 'wh1',
-          name: 'Main Warehouse',
-          location: 'Accra',
-          status: 'operational' as const,
-        },
-      },
-      owner: {
-        phone: '0201234567',
-        pin: '5678',
-        user: {
-          id: '2',
-          name: 'Sarah Mensah',
-          phone: '0201234567',
-          role: 'owner' as const,
-        },
-        warehouse: {
-          id: 'wh1',
-          name: 'Main Warehouse',
-          location: 'Accra',
-          status: 'operational' as const,
-        },
-      },
-    };
+      const data = await response.json();
 
-    const account = testAccounts[selectedRole];
-    
-    console.log('Expected Phone:', account.phone);
-    console.log('Expected PIN:', account.pin);
-    console.log('Match?', phone === account.phone && pin === account.pin);
-    
-    if (phone === account.phone && pin === account.pin) {
-      // Successful login
-      console.log('✅ Login successful! Logging in as:', account.user.name);
-      login(account.user, account.warehouse);
-      console.log('✅ Auth store updated');
-      
-      // Navigate immediately based on role
-      if (selectedRole === 'owner') {
-        console.log('✅ Navigating to /owner');
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Extract user, warehouse, and tokens from response
+      const { user, warehouse, accessToken, refreshToken } = data.data;
+
+      // Save to auth store
+      login(user, warehouse, accessToken, refreshToken);
+
+      // Navigate based on role
+      if (user.role === 'OWNER') {
         router.replace('/owner');
-      } else {
-        console.log('✅ Navigating to /attendant');
+      } else if (user.role === 'ATTENDANT') {
         router.replace('/attendant');
       }
-    } else {
-      // Show error
-      setError(
-        `Invalid credentials. Try:\n${selectedRole === 'attendant' 
-          ? 'Phone: 0241234567, PIN: 1234' 
-          : 'Phone: 0201234567, PIN: 5678'}`
-      );
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
     }
   };
 

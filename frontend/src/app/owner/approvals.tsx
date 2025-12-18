@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,39 +7,48 @@ import {
   ScrollView,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-
-// Mock data for pending approvals
-const MOCK_APPROVALS = [
-  {
-    id: '1',
-    cropType: 'Maize',
-    quantity: 25,
-    buyer: 'Kwame Asante',
-    phone: '+233 24 555 1234',
-    submittedBy: 'James Okonkwo',
-    timeAgo: '2 hours ago',
-    status: 'pending',
-  },
-  {
-    id: '2',
-    cropType: 'Rice',
-    quantity: 15,
-    buyer: 'Amina Diallo',
-    phone: '+233 20 888 5678',
-    submittedBy: 'James Okonkwo',
-    timeAgo: '45 minutes ago',
-    status: 'pending',
-  },
-];
+import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 export default function ApprovalsScreen() {
   const router = useRouter();
-  const [approvals, setApprovals] = useState(MOCK_APPROVALS);
+  const { accessToken } = useAuthStore();
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleApprove = (id: string) => {
+  useEffect(() => {
+    fetchApprovals();
+  }, []);
+
+  const fetchApprovals = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(API_ENDPOINTS.OWNER_APPROVALS, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setApprovals(data.data || []);
+      } else {
+        throw new Error(data.error || 'Failed to fetch approvals');
+      }
+    } catch (error) {
+      console.error('Fetch approvals error:', error);
+      Alert.alert('Error', 'Failed to load approvals');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApprove = async (requestId: string) => {
     Alert.alert(
       'Approve Request',
       'Are you sure you want to approve this dispatch request?',
@@ -48,16 +57,34 @@ export default function ApprovalsScreen() {
         {
           text: 'Approve',
           style: 'default',
-          onPress: () => {
-            setApprovals(prev => prev.filter(a => a.id !== id));
-            Alert.alert('✅ Approved', 'Request has been approved. Attendant can now dispatch.');
+          onPress: async () => {
+            try {
+              const response = await fetch(API_ENDPOINTS.OWNER_APPROVE(requestId), {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+              });
+
+              const data = await response.json();
+
+              if (data.success) {
+                Alert.alert('Approved', 'Request has been approved. Attendant can now dispatch.');
+                fetchApprovals(); // Refresh list
+              } else {
+                throw new Error(data.error || 'Failed to approve');
+              }
+            } catch (error: any) {
+              console.error('Approve error:', error);
+              Alert.alert('Error', error.message || 'Failed to approve request');
+            }
           },
         },
       ]
     );
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (requestId: string) => {
     Alert.alert(
       'Reject Request',
       'Are you sure you want to reject this dispatch request?',
@@ -66,9 +93,31 @@ export default function ApprovalsScreen() {
         {
           text: 'Reject',
           style: 'destructive',
-          onPress: () => {
-            setApprovals(prev => prev.filter(a => a.id !== id));
-            Alert.alert('❌ Rejected', 'Request has been rejected.');
+          onPress: async () => {
+            try {
+              const response = await fetch(API_ENDPOINTS.OWNER_REJECT(requestId), {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  reason: 'Rejected by owner',
+                }),
+              });
+
+              const data = await response.json();
+
+              if (data.success) {
+                Alert.alert('Rejected', 'Request has been rejected.');
+                fetchApprovals(); // Refresh list
+              } else {
+                throw new Error(data.error || 'Failed to reject');
+              }
+            } catch (error: any) {
+              console.error('Reject error:', error);
+              Alert.alert('Error', error.message || 'Failed to reject request');
+            }
           },
         },
       ]
@@ -100,8 +149,13 @@ export default function ApprovalsScreen() {
           <Text style={styles.summaryBags}>{totalBags} bags requested</Text>
         </View>
 
-        {/* Approvals List */}
-        {approvals.length === 0 ? (
+        {/* Loading State */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3d9448" />
+            <Text style={styles.loadingText}>Loading approvals...</Text>
+          </View>
+        ) : approvals.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>✅</Text>
             <Text style={styles.emptyTitle}>All Caught Up!</Text>
@@ -221,6 +275,17 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#78716c',
   },
   summary: {
     paddingHorizontal: 20,

@@ -15,16 +15,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 const CROP_TYPES = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
 
 export default function LogInboundScreen() {
   const router = useRouter();
+  const { accessToken } = useAuthStore();
   const [cropType, setCropType] = useState('');
   const [quantity, setQuantity] = useState('');
   const [source, setSource] = useState('');
   const [showCropPicker, setShowCropPicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleTakePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -94,13 +98,42 @@ Photo: Attached`,
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Confirm',
-          onPress: () => {
-            Alert.alert('Success', 'Stock entry logged successfully!', [
-              {
-                text: 'OK',
-                onPress: () => router.back(),
-              },
-            ]);
+          onPress: async () => {
+            try {
+              setIsSubmitting(true);
+              
+              const response = await fetch(API_ENDPOINTS.ATTENDANT_LOG_INBOUND, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({
+                  cropType: cropType.toLowerCase(),
+                  bags: parseInt(quantity),
+                  source,
+                  photoProof: photoUri,
+                }),
+              });
+
+              const data = await response.json();
+
+              if (data.success) {
+                Alert.alert('Success', 'Stock entry logged successfully!', [
+                  {
+                    text: 'OK',
+                    onPress: () => router.back(),
+                  },
+                ]);
+              } else {
+                throw new Error(data.error || 'Failed to log inbound');
+              }
+            } catch (error: any) {
+              console.error('Log inbound error:', error);
+              Alert.alert('Error', error.message || 'Failed to log inbound stock');
+            } finally {
+              setIsSubmitting(false);
+            }
           },
         },
       ]

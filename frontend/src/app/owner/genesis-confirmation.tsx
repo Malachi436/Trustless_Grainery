@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { CropType } from '@/lib/types';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 type GenesisItem = {
   cropType: CropType;
@@ -33,7 +34,7 @@ const CROP_OPTIONS: { value: CropType; label: string }[] = [
 
 export default function GenesisConfirmationScreen() {
   const router = useRouter();
-  const { user, warehouse } = useAuthStore();
+  const { user, warehouse, accessToken } = useAuthStore();
   const [inventory, setInventory] = useState<GenesisItem[]>([]);
   const [selectedCrop, setSelectedCrop] = useState<CropType>('maize');
   const [bags, setBags] = useState('');
@@ -72,8 +73,7 @@ export default function GenesisConfirmationScreen() {
       'Confirm Genesis Inventory',
       `You are about to record the initial inventory:
 
-${inventory.map(item => `${getCropLabel(item.cropType)}: ${item.bags} bags`).join('
-')}
+${inventory.map(item => `${getCropLabel(item.cropType)}: ${item.bags} bags`).join('\n')}
 
 Total: ${totalBags} bags
 
@@ -93,12 +93,11 @@ This action cannot be undone. Are you sure?`,
     setIsSubmitting(true);
 
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch('http://localhost:4000/api/owner/genesis', {
+      const response = await fetch(API_ENDPOINTS.OWNER_GENESIS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.id}`, // TODO: Use actual JWT token from auth store
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           inventory: inventory.map(item => ({

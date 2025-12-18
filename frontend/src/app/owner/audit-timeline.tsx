@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useAuthStore } from '@/lib/auth-store';
+import { API_ENDPOINTS } from '@/lib/api-config';
 
 // Mock transaction data
 const MOCK_TRANSACTIONS = [
@@ -56,9 +59,39 @@ const MOCK_TRANSACTIONS = [
 
 export default function AuditTimelineScreen() {
   const router = useRouter();
+  const { accessToken } = useAuthStore();
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const inboundCount = MOCK_TRANSACTIONS.filter(t => t.type === 'inbound').length;
-  const outboundCount = MOCK_TRANSACTIONS.filter(t => t.type === 'outbound').length;
+  useEffect(() => {
+    fetchAuditLog();
+  }, []);
+
+  const fetchAuditLog = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(API_ENDPOINTS.OWNER_AUDIT, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTransactions(data.data || []);
+      } else {
+        console.error('Failed to fetch audit log:', data.error);
+      }
+    } catch (error) {
+      console.error('Fetch audit error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const inboundCount = transactions.filter(t => t.eventType === 'INBOUND_LOGGED').length;
+  const outboundCount = transactions.filter(t => t.eventType === 'DISPATCH_EXECUTED').length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -104,7 +137,19 @@ export default function AuditTimelineScreen() {
 
       {/* Transactions List */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {MOCK_TRANSACTIONS.map((transaction) => (
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3d9448" />
+            <Text style={styles.loadingText}>Loading audit log...</Text>
+          </View>
+        ) : transactions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyTitle}>No Transactions Yet</Text>
+            <Text style={styles.emptySubtitle}>Audit events will appear here</Text>
+          </View>
+        ) : (
+          transactions.map((transaction) => (
           <View key={transaction.id} style={styles.transactionCard}>
             {/* Header */}
             <View style={styles.transactionHeader}>
@@ -165,7 +210,8 @@ export default function AuditTimelineScreen() {
               </View>
             </View>
           </View>
-        ))}
+        ))
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -177,6 +223,37 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f4',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#78716c',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1c1917',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: '#78716c',
   },
   header: {
     flexDirection: 'row',
