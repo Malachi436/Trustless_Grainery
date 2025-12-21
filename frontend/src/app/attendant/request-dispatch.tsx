@@ -70,10 +70,10 @@ Phone: ${buyerPhone}`,
                   'Authorization': `Bearer ${accessToken}`,
                 },
                 body: JSON.stringify({
-                  cropType: cropType.toLowerCase(),
+                  cropType,  // Send as-is (capitalized like "Maize")
                   bags: parseInt(quantity),
-                  buyerName,
-                  buyerPhone,
+                  recipientName: buyerName,  // Backend expects recipientName
+                  notes: buyerPhone,  // Store phone in notes field
                 }),
               });
 

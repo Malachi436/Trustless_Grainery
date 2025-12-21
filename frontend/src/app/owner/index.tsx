@@ -15,8 +15,8 @@ import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS, logApiUrl } from '@/lib/api-config';
 
 type StockItem = {
-  cropType: string;
-  bags: number;
+  crop: string; // Backend returns 'crop', not 'cropType'
+  bag_count: number; // Backend returns 'bag_count', not 'bags'
 };
 
 type DashboardData = {
@@ -75,20 +75,18 @@ export default function OwnerHomeScreen() {
     }
   };
 
-  const getCropLabel = (cropType: string) => {
+  const getCropLabel = (crop: string) => {
     const labels: Record<string, string> = {
-      maize: 'Maize',
-      rice: 'Rice',
-      wheat: 'Wheat',
-      sorghum: 'Sorghum',
-      barley: 'Barley',
-      millet: 'Millet',
-      soybeans: 'Soybeans',
+      Maize: 'Maize',
+      Rice: 'Rice',
+      Wheat: 'Wheat',
+      Soybeans: 'Soybeans',
+      Millet: 'Millet',
     };
-    return labels[cropType] || cropType;
+    return labels[crop] || crop;
   };
 
-  const totalBags = dashboardData?.stock.reduce((sum, item) => sum + item.bags, 0) || 0;
+  const totalBags = dashboardData?.stock.reduce((sum, item) => sum + item.bag_count, 0) || 0;
   const cropCount = dashboardData?.stock.length || 0;
   const pendingCount = dashboardData?.pendingApprovals.length || 0;
 
@@ -178,7 +176,7 @@ export default function OwnerHomeScreen() {
                 {visibleCrops.map((crop, index) => (
                   <View key={index} style={styles.cropTag}>
                     <Text style={styles.cropTagText}>
-                      {getCropLabel(crop.cropType)}: {crop.bags}
+                      {getCropLabel(crop.crop)}: {crop.bag_count}
                     </Text>
                   </View>
                 ))}

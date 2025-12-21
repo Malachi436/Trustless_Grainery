@@ -51,7 +51,7 @@ export class OutboundService {
 
       // Check current stock
       const stock = await stockProjectionService.getCurrentStock(warehouseId);
-      const currentBags = stock.find(s => s.cropType === cropType)?.bags || 0;
+      const currentBags = stock.find(s => s.crop === cropType)?.bag_count || 0;
 
       if (currentBags < bags) {
         throw new AppError(

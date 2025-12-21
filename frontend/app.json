@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.trustless.granary"
     },
     "android": {
-      "package": "com.trustless.granary"
+      "package": "com.trustless.granary",
+      "usesCleartextTraffic": true
     },
     "plugins": ["expo-router"],
     "experiments": {

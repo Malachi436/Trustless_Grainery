@@ -124,8 +124,8 @@ export default function ApprovalsScreen() {
     );
   };
 
-  const pendingCount = approvals.filter(a => a.status === 'pending').length;
-  const totalBags = approvals.reduce((sum, a) => sum + a.quantity, 0);
+  const pendingCount = approvals.filter(a => a.status === 'PENDING').length;
+  const totalBags = approvals.reduce((sum, a) => sum + (a.bag_quantity || 0), 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -162,13 +162,14 @@ export default function ApprovalsScreen() {
             <Text style={styles.emptyText}>No pending approvals at the moment</Text>
           </View>
         ) : (
-          approvals.map((approval) => (
-            <View key={approval.id} style={styles.approvalCard}>
+          <>
+            {approvals.map((approval) => (
+            <View key={approval.request_id} style={styles.approvalCard}>
               {/* Crop Header */}
               <View style={styles.cardHeader}>
                 <View>
-                  <Text style={styles.cropName}>{approval.cropType}</Text>
-                  <Text style={styles.quantity}>{approval.quantity} bags requested</Text>
+                  <Text style={styles.cropName}>{approval.crop}</Text>
+                  <Text style={styles.quantity}>{approval.bag_quantity} bags requested</Text>
                 </View>
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusText}>Pending</Text>
@@ -182,18 +183,18 @@ export default function ApprovalsScreen() {
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Buyer</Text>
-                  <Text style={styles.infoValue}>{approval.buyer}</Text>
+                  <Text style={styles.infoValue}>{approval.buyer_name || 'N/A'}</Text>
                 </View>
               </View>
 
-              {/* Phone */}
+              {/* Phone/Notes */}
               <View style={styles.infoRow}>
                 <View style={styles.infoIconContainer}>
                   <Text style={styles.infoIcon}>📱</Text>
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Phone</Text>
-                  <Text style={styles.infoValue}>{approval.phone}</Text>
+                  <Text style={styles.infoValue}>{approval.buyer_phone || approval.notes || 'N/A'}</Text>
                 </View>
               </View>
 
@@ -204,21 +205,21 @@ export default function ApprovalsScreen() {
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Submitted by</Text>
-                  <Text style={styles.infoValue}>{approval.submittedBy}</Text>
+                  <Text style={styles.infoValue}>{approval.requester_name || 'Attendant'}</Text>
                 </View>
               </View>
 
               {/* Time */}
               <View style={styles.timeContainer}>
                 <Text style={styles.timeIcon}>🕐</Text>
-                <Text style={styles.timeText}>{approval.timeAgo}</Text>
+                <Text style={styles.timeText}>{new Date(approval.requested_at).toLocaleString()}</Text>
               </View>
 
               {/* Action Buttons */}
               <View style={styles.actionButtons}>
                 <TouchableOpacity
                   style={styles.rejectButton}
-                  onPress={() => handleReject(approval.id)}
+                  onPress={() => handleReject(approval.request_id)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.rejectIcon}>✕</Text>
@@ -227,7 +228,7 @@ export default function ApprovalsScreen() {
 
                 <TouchableOpacity
                   style={styles.approveButton}
-                  onPress={() => handleApprove(approval.id)}
+                  onPress={() => handleApprove(approval.request_id)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.approveIcon}>✓</Text>
@@ -235,7 +236,8 @@ export default function ApprovalsScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          ))
+            ))}
+          </>
         )}
 
         <View style={{ height: 40 }} />

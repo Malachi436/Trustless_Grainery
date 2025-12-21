@@ -25,7 +25,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const { phone, pin } = req.body;
+    const { phone, pin, role } = req.body;
+    console.log('Login attempt:', { phone, pin: '****', role, phoneLength: phone?.length });
     const result = await authService.login(phone, pin);
 
     res.json({
@@ -43,6 +44,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
+    console.error('Login error:', error instanceof Error ? error.message : 'Login failed');
     throw new AppError(error instanceof Error ? error.message : 'Login failed', 401);
   }
 };

@@ -30,11 +30,7 @@ export class GenesisService {
     photoUrls: string[],
     notes?: string
   ): Promise<Event> {
-    // Validate photo evidence
-    if (!photoUrls || photoUrls.length === 0) {
-      throw new AppError('Photo evidence is mandatory for Genesis inventory', 400);
-    }
-
+    // Photo evidence is optional (can be empty array)
     // Check warehouse exists and is in SETUP status
     const warehouse = await warehouseService.getWarehouseById(warehouseId);
     if (!warehouse) {
@@ -125,7 +121,7 @@ export class GenesisService {
     // Update all Genesis events with owner confirmation
     await db.query(
       `UPDATE events 
-       SET payload = payload || '{"confirmed_by_owner": $1}'::jsonb
+       SET payload = payload || jsonb_build_object('confirmed_by_owner', $1::text)
        WHERE warehouse_id = $2 
        AND event_type = $3`,
       [ownerId, warehouseId, EventType.GENESIS_INVENTORY_RECORDED]

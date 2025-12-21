@@ -29,20 +29,25 @@ $env:PGPASSWORD = "postgres123"
 $env:NODE_ENV = "development"
 Write-Host "      [OK] Environment configured" -ForegroundColor Green
 
-# Step 3: Recreate database
-Write-Host "`n[3/7] Recreating database..." -ForegroundColor Yellow
+# Step 3: Check database exists (DO NOT DROP - preserves user data)
+Write-Host "`n[3/7] Checking database..." -ForegroundColor Yellow
 $psqlPath = "C:\Program Files\PostgreSQL\16\bin\psql.exe"
 
 if (Test-Path $psqlPath) {
     try {
-        & $psqlPath -U postgres -c "DROP DATABASE IF EXISTS trustless_granary;" 2>$null
-        & $psqlPath -U postgres -c "CREATE DATABASE trustless_granary;" 2>$null
-        Write-Host "      [OK] Database recreated" -ForegroundColor Green
+        # Only create if doesn't exist (won't drop existing data)
+        & $psqlPath -U postgres -c "SELECT 1 FROM pg_database WHERE datname='trustless_granary'" -t 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            & $psqlPath -U postgres -c "CREATE DATABASE trustless_granary;" 2>$null
+            Write-Host "      [OK] Database created" -ForegroundColor Green
+        } else {
+            Write-Host "      [OK] Database exists (preserving data)" -ForegroundColor Green
+        }
     } catch {
-        Write-Host "      [WARN] Database recreation failed" -ForegroundColor Yellow
+        Write-Host "      [WARN] Database check failed" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "      [WARN] PostgreSQL not found, skipping DB recreation" -ForegroundColor Yellow
+    Write-Host "      [WARN] PostgreSQL not found, skipping DB check" -ForegroundColor Yellow
 }
 
 # Step 4: Navigate to backend directory
@@ -50,7 +55,7 @@ Write-Host "`n[4/7] Navigating to backend directory..." -ForegroundColor Yellow
 Set-Location "c:\Users\user\Desktop\Trustless_Grainery\backend"
 Write-Host "      [OK] In backend directory" -ForegroundColor Green
 
-# Step 5: Run migrations
+# Step 5: Run migrations (safe - idempotent)
 Write-Host "`n[5/7] Running database migrations..." -ForegroundColor Yellow
 try {
     npm run migrate 2>&1 | Out-Null
@@ -60,15 +65,10 @@ try {
     exit 1
 }
 
-# Step 6: Seed database
-Write-Host "`n[6/7] Seeding database..." -ForegroundColor Yellow
-try {
-    npm run seed 2>&1 | Out-Null
-    Write-Host "      [OK] Database seeded" -ForegroundColor Green
-} catch {
-    Write-Host "      [ERROR] Seed failed" -ForegroundColor Red
-    exit 1
-}
+# Step 6: Seed database (SKIPPED - preserves existing users)
+Write-Host "`n[6/7] Skipping seed (preserving existing data)..." -ForegroundColor Yellow
+Write-Host "      [OK] Data preserved" -ForegroundColor Green
+# If you need to reset data, run: npm run seed
 
 # Step 7: Start backend server
 Write-Host "`n[7/7] Starting backend server..." -ForegroundColor Yellow

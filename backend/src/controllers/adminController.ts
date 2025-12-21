@@ -1,9 +1,13 @@
 import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
+import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 import authService from '../services/AuthService';
 import warehouseService from '../services/WarehouseService';
+import genesisService from '../services/GenesisService';
 import db from '../config/database';
-import { UserRole, WarehouseStatus } from '../types/enums';
+import logger from '../config/logger';
+import { UserRole, WarehouseStatus, CropType } from '../types/enums';
 import { AppError } from '../middleware/errorHandler';
 
 /**
@@ -37,35 +41,85 @@ export const createWarehouse = async (req: Request, res: Response): Promise<void
     return;
   }
 
+  const client = await db.getClient();
+  
   try {
+    await client.query('BEGIN');
+    
     const { name, location, ownerName, ownerPhone, ownerPin } = req.body;
 
-    // Create warehouse with owner
-    const result = await warehouseService.createWarehouse(
-      name,
-      location,
-      ownerName,
-      ownerPhone,
-      ownerPin
+    // Check if phone already exists
+    const existingUser = await client.query(
+      'SELECT id FROM users WHERE phone = $1',
+      [ownerPhone]
     );
+    
+    if (existingUser.rows.length > 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({
+        success: false,
+        error: 'Phone number already registered',
+      });
+      return;
+    }
+
+    // Step 1: Create a temporary owner user
+    const ownerId = uuidv4();
+    const hashedPin = await bcrypt.hash(ownerPin, 10);
+    
+    await client.query(
+      `INSERT INTO users (id, name, phone, role, hashed_pin, warehouse_id)
+       VALUES ($1, $2, $3, $4, $5, NULL)`,
+      [ownerId, ownerName, ownerPhone, UserRole.OWNER, hashedPin]
+    );
+
+    // Step 2: Create the warehouse with the owner_id
+    const warehouseId = uuidv4();
+    const warehouseResult = await client.query(
+      `INSERT INTO warehouses (id, name, location, status, owner_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [warehouseId, name, location, WarehouseStatus.SETUP, ownerId]
+    );
+
+    // Step 3: Update the owner's warehouse_id
+    await client.query(
+      `UPDATE users SET warehouse_id = $1 WHERE id = $2`,
+      [warehouseId, ownerId]
+    );
+
+    await client.query('COMMIT');
+
+    const warehouse = warehouseResult.rows[0];
 
     res.status(201).json({
       success: true,
       data: {
-        warehouse: result.warehouse,
+        warehouse: {
+          id: warehouse.id,
+          name: warehouse.name,
+          location: warehouse.location,
+          status: warehouse.status,
+          owner_id: ownerId,
+        },
         owner: {
-          id: result.owner.id,
-          name: result.owner.name,
-          phone: result.owner.phone,
-          role: result.owner.role,
+          id: ownerId,
+          name: ownerName,
+          phone: ownerPhone,
+          role: UserRole.OWNER,
         },
       },
     });
+
+    logger.info('✅ Warehouse and owner created', { warehouseId, ownerId });
   } catch (error) {
+    await client.query('ROLLBACK');
     throw new AppError(
       error instanceof Error ? error.message : 'Failed to create warehouse',
       500
     );
+  } finally {
+    client.release();
   }
 };
 
@@ -204,6 +258,84 @@ export const getWarehouseDetails = async (req: Request, res: Response): Promise<
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : 'Failed to get warehouse',
+      500
+    );
+  }
+};
+
+export const recordGenesisValidation = [
+  body('inventory').isArray({ min: 1 }).withMessage('Inventory must be a non-empty array'),
+  body('inventory.*.cropType').custom((value) => {
+    const validCrops = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
+    // Accept case-insensitive but validate against capitalized versions
+    const capitalizedValue = typeof value === 'string' 
+      ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() 
+      : value;
+    if (!validCrops.includes(capitalizedValue)) {
+      throw new Error(`Invalid crop type: ${value}. Must be one of: ${validCrops.join(', ')}`);
+    }
+    return true;
+  }),
+  body('inventory.*.bags').isInt({ min: 1 }).withMessage('Bags must be a positive integer'),
+  body('photoUrls').optional().isArray().withMessage('Photo URLs must be an array'),
+  body('notes').optional().isString().withMessage('Notes must be a string'),
+];
+
+/**
+ * Record Genesis Inventory for a warehouse
+ * POST /api/admin/warehouses/:warehouseId/genesis
+ */
+export const recordGenesis = async (req: Request, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    logger.warn('Genesis validation failed', { errors: errors.array(), body: req.body });
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array(),
+    });
+    return;
+  }
+
+  try {
+    const { warehouseId } = req.params;
+    const { inventory, photoUrls, notes } = req.body;
+    const adminId = req.user?.user_id;
+
+    if (!adminId) {
+      throw new AppError('Admin ID not found', 401);
+    }
+
+    // Record genesis for each crop in the inventory
+    const events = [];
+    for (const item of inventory) {
+      // Normalize crop type to capitalized format (Maize, Rice, etc.)
+      const cropType = typeof item.cropType === 'string' 
+        ? item.cropType.charAt(0).toUpperCase() + item.cropType.slice(1).toLowerCase()
+        : item.cropType;
+      const event = await genesisService.recordGenesis(
+        warehouseId,
+        adminId,
+        cropType as CropType,
+        item.bags,
+        photoUrls || [],
+        notes
+      );
+      events.push(event);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        events,
+        message: 'Genesis inventory recorded successfully. Warehouse status updated to GENESIS_PENDING.',
+      },
+    });
+
+    logger.info('✅ Genesis inventory recorded by admin', { warehouseId, adminId, itemCount: inventory.length });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to record genesis',
       500
     );
   }

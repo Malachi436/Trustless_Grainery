@@ -35,7 +35,13 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      // Call real backend login API
+      console.log('Attempting login to:', API_ENDPOINTS.LOGIN);
+      console.log('Request body:', { phone, pin: '****', role: selectedRole === 'owner' ? 'OWNER' : 'ATTENDANT' });
+      
+      // Call real backend login API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
@@ -46,9 +52,14 @@ export default function LoginScreen() {
           pin,
           role: selectedRole === 'owner' ? 'OWNER' : 'ATTENDANT',
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      console.log('Response status:', response.status);
 
       const data = await response.json();
+      console.log('Response data:', { success: data.success, hasUser: !!data.data?.user });
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Login failed');
@@ -68,7 +79,13 @@ export default function LoginScreen() {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please check your credentials.');
+      if (err.name === 'AbortError') {
+        setError('Request timeout. Please check your network connection.');
+      } else if (err.message.includes('Network request failed')) {
+        setError('Cannot connect to server. Make sure you\'re on the same WiFi network and the backend is running.');
+      } else {
+        setError(err.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -153,8 +170,12 @@ export default function LoginScreen() {
           <Text style={styles.label}>Phone Number</Text>
           <TextInput
             value={phone}
-            onChangeText={(text) => setPhone(text.replace(/[^0-9]/g, ''))}
-            placeholder="+233 XX XXX XXXX"
+            onChangeText={(text) => {
+              // Keep only digits and ensure leading zero is preserved
+              const cleaned = text.replace(/[^0-9]/g, '');
+              setPhone(cleaned);
+            }}
+            placeholder="0241234567 or 0201234567"
             placeholderTextColor="#c4c4c4"
             keyboardType="phone-pad"
             maxLength={15}

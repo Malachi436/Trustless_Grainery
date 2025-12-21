@@ -19,8 +19,15 @@ export default function WarehousesPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newWarehouse, setNewWarehouse] = useState({ name: '', location: '' });
+  const [newWarehouse, setNewWarehouse] = useState({ 
+    name: '', 
+    location: '',
+    ownerName: '',
+    ownerPhone: '',
+    ownerPin: ''
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -53,9 +60,11 @@ export default function WarehousesPage() {
 
   const handleCreateWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newWarehouse.name || !newWarehouse.location) return;
+    if (!newWarehouse.name || !newWarehouse.location || !newWarehouse.ownerName || !newWarehouse.ownerPhone || !newWarehouse.ownerPin) return;
 
     setIsSubmitting(true);
+    setError('');
+    
     try {
       const token = localStorage.getItem('adminToken');
       const response = await fetch(API_ENDPOINTS.ADMIN_WAREHOUSES, {
@@ -68,13 +77,20 @@ export default function WarehousesPage() {
       });
 
       const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.error || data.details?.[0]?.msg || 'Failed to create warehouse');
+        return;
+      }
+      
       if (data.success) {
         setShowCreateModal(false);
-        setNewWarehouse({ name: '', location: '' });
+        setNewWarehouse({ name: '', location: '', ownerName: '', ownerPhone: '', ownerPin: '' });
         fetchWarehouses();
       }
     } catch (error) {
       console.error('Failed to create warehouse:', error);
+      setError('Network error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -224,6 +240,12 @@ export default function WarehousesPage() {
           >
             <h2 className="text-2xl font-medium mb-6" style={{ color: '#1e1e1e' }}>Create New Warehouse</h2>
 
+            {error && (
+              <div className="mb-4 p-3 rounded-lg" style={{ background: 'rgba(184, 92, 92, 0.1)', border: '1px solid rgba(184, 92, 92, 0.3)' }}>
+                <p className="text-sm" style={{ color: '#b85c5c' }}>{error}</p>
+              </div>
+            )}
+
             <form onSubmit={handleCreateWarehouse} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
@@ -261,6 +283,71 @@ export default function WarehousesPage() {
                   placeholder="e.g., Accra, Ghana"
                   required
                 />
+              </div>
+
+              <div className="pt-4 border-t" style={{ borderColor: 'rgba(138, 156, 123, 0.2)' }}>
+                <h3 className="text-sm font-medium mb-4" style={{ color: '#3a3f38' }}>Owner Information</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
+                      Owner Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newWarehouse.ownerName}
+                      onChange={(e) => setNewWarehouse({ ...newWarehouse, ownerName: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-lg transition-all"
+                      style={{ 
+                        border: '1px solid rgba(138, 156, 123, 0.3)',
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        color: '#1e1e1e'
+                      }}
+                      placeholder="Full name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
+                      Owner Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={newWarehouse.ownerPhone}
+                      onChange={(e) => setNewWarehouse({ ...newWarehouse, ownerPhone: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-lg transition-all"
+                      style={{ 
+                        border: '1px solid rgba(138, 156, 123, 0.3)',
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        color: '#1e1e1e'
+                      }}
+                      placeholder="e.g., +233123456789"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>
+                      Owner PIN (4 digits)
+                    </label>
+                    <input
+                      type="text"
+                      value={newWarehouse.ownerPin}
+                      onChange={(e) => setNewWarehouse({ ...newWarehouse, ownerPin: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-lg transition-all"
+                      style={{ 
+                        border: '1px solid rgba(138, 156, 123, 0.3)',
+                        background: 'rgba(255, 255, 255, 0.6)',
+                        color: '#1e1e1e'
+                      }}
+                      placeholder="4-digit PIN"
+                      maxLength={4}
+                      pattern="[0-9]{4}"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

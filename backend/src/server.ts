@@ -40,8 +40,8 @@ app.use(notFound);
 // Error handler (must be last)
 app.use(errorHandler);
 
-// Start server
-const server = app.listen(PORT, () => {
+// Start server - Listen on all network interfaces (0.0.0.0) for mobile app access
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`
 ╔═══════════════════════════════════════════════╗
 ║   TRUSTLESS GRANARY BACKEND                   ║

@@ -111,7 +111,7 @@ export default function GenesisPage() {
     }
   };
 
-  const cropTypes = ['Maize', 'Rice', 'Wheat', 'Soybeans', 'Sorghum', 'Millet', 'Beans'];
+  const cropTypes = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
 
   return (
     <div style={{ background: 'linear-gradient(135deg, #fafaf8 0%, #efece6 100%)', minHeight: '100vh' }}>

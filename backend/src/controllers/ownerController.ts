@@ -233,9 +233,7 @@ export const getAuditTimeline = async (req: Request, res: Response): Promise<voi
 };
 
 export const confirmGenesisValidation = [
-  body('inventory').isArray().withMessage('Inventory must be an array'),
-  body('inventory.*.cropType').notEmpty().withMessage('Crop type is required'),
-  body('inventory.*.bags').isInt({ min: 1 }).withMessage('Bags must be positive integer'),
+  // No body validation needed - just confirming what admin already recorded
 ];
 
 /**
@@ -258,25 +256,25 @@ export const confirmGenesis = async (req: Request, res: Response): Promise<void>
       throw new AppError('Not authenticated properly', 401);
     }
 
-    const { inventory } = req.body;
-
-    const result = await genesisService.recordGenesis(
+    // Just confirm the genesis that was already recorded by admin
+    await genesisService.confirmGenesis(
       req.user.warehouse_id,
-      req.user.user_id,
-      inventory
+      req.user.user_id
     );
+
+    // Get updated stock after confirmation
+    const stock = await stockProjectionService.getCurrentStock(req.user.warehouse_id);
 
     res.json({
       success: true,
       data: {
-        eventId: result.eventId,
-        stock: result.stock,
-        message: 'Genesis inventory recorded successfully',
+        stock,
+        message: 'Genesis inventory confirmed successfully. Warehouse is now ACTIVE.',
       },
     });
   } catch (error) {
     throw new AppError(
-      error instanceof Error ? error.message : 'Failed to record genesis',
+      error instanceof Error ? error.message : 'Failed to confirm genesis',
       500
     );
   }

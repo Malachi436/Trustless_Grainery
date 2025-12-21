@@ -55,16 +55,16 @@ export const API_ENDPOINTS = {
   OWNER_DASHBOARD: `${API_BASE_URL}/api/owner/dashboard`,
   OWNER_GENESIS: `${API_BASE_URL}/api/owner/genesis`,
   OWNER_APPROVALS: `${API_BASE_URL}/api/owner/approvals`,
-  OWNER_APPROVE: (requestId: string) => `${API_BASE_URL}/api/owner/approve/${requestId}`,
-  OWNER_REJECT: (requestId: string) => `${API_BASE_URL}/api/owner/reject/${requestId}`,
+  OWNER_APPROVE: (requestId: string) => `${API_BASE_URL}/api/owner/approvals/${requestId}/approve`,
+  OWNER_REJECT: (requestId: string) => `${API_BASE_URL}/api/owner/approvals/${requestId}/reject`,
   OWNER_AUDIT: `${API_BASE_URL}/api/owner/audit`,
   
   // Attendant
   ATTENDANT_HOME: `${API_BASE_URL}/api/attendant/home`,
-  ATTENDANT_LOG_INBOUND: `${API_BASE_URL}/api/attendant/log-inbound`,
-  ATTENDANT_REQUEST_DISPATCH: `${API_BASE_URL}/api/attendant/request-dispatch`,
-  ATTENDANT_MY_REQUESTS: `${API_BASE_URL}/api/attendant/my-requests`,
-  ATTENDANT_EXECUTE: (requestId: string) => `${API_BASE_URL}/api/attendant/execute/${requestId}`,
+  ATTENDANT_LOG_INBOUND: `${API_BASE_URL}/api/attendant/inbound`,
+  ATTENDANT_REQUEST_DISPATCH: `${API_BASE_URL}/api/attendant/requests`,
+  ATTENDANT_MY_REQUESTS: `${API_BASE_URL}/api/attendant/requests`,
+  ATTENDANT_EXECUTE: (requestId: string) => `${API_BASE_URL}/api/attendant/requests/${requestId}/execute`,
   
   // Admin
   ADMIN_CREATE_WAREHOUSE: `${API_BASE_URL}/api/admin/warehouses`,

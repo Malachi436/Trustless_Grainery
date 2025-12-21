@@ -42,4 +42,14 @@ router.post('/users', adminController.createUserValidation, adminController.crea
  */
 router.get('/users', adminController.getAllUsers);
 
+/**
+ * POST /admin/warehouses/:warehouseId/genesis
+ * Record genesis inventory for a warehouse
+ */
+router.post(
+  '/warehouses/:warehouseId/genesis',
+  adminController.recordGenesisValidation,
+  adminController.recordGenesis
+);
+
 export default router;
