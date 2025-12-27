@@ -62,4 +62,28 @@ router.post(
   ownerController.confirmGenesis
 );
 
+/**
+ * GET /owner/batches
+ * Get all batches for warehouse
+ * Query params: ?crop=MAIZE&available=true
+ */
+router.get('/batches', ownerController.getBatches);
+
+/**
+ * GET /owner/tools
+ * Get all tools for warehouse
+ * Query params: ?status=AVAILABLE
+ */
+router.get('/tools', ownerController.getTools);
+
+/**
+ * POST /owner/tools/:toolId/assign
+ * Assign tool to attendant
+ */
+router.post(
+  '/tools/:toolId/assign',
+  ownerController.assignToolValidation,
+  ownerController.assignTool
+);
+
 export default router;

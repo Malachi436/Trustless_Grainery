@@ -21,13 +21,12 @@ export default function RequestDispatchScreen() {
   const { accessToken } = useAuthStore();
   const [cropType, setCropType] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [buyerName, setBuyerName] = useState('');
-  const [buyerPhone, setBuyerPhone] = useState('');
+  const [notes, setNotes] = useState('');
   const [showCropPicker, setShowCropPicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   console.log('RequestDispatchScreen rendering...');
-  console.log('Current state:', { cropType, quantity, buyerName, buyerPhone });
+  console.log('Current state:', { cropType, quantity, notes });
 
   const handleSubmit = () => {
     if (!cropType) {
@@ -38,23 +37,13 @@ export default function RequestDispatchScreen() {
       Alert.alert('Error', 'Please enter a valid quantity');
       return;
     }
-    if (!buyerName.trim()) {
-      Alert.alert('Error', 'Please enter buyer name');
-      return;
-    }
-    if (!buyerPhone.trim()) {
-      Alert.alert('Error', 'Please enter buyer phone number');
-      return;
-    }
 
     Alert.alert(
       'Submit Request',
       `Send dispatch request to owner?
 
 Crop: ${cropType}
-Quantity: ${quantity} bags
-Buyer: ${buyerName}
-Phone: ${buyerPhone}`,
+Quantity: ${quantity} bags${notes ? `\nNote: ${notes}` : ''}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -70,10 +59,10 @@ Phone: ${buyerPhone}`,
                   'Authorization': `Bearer ${accessToken}`,
                 },
                 body: JSON.stringify({
-                  cropType,  // Send as-is (capitalized like "Maize")
+                  cropType,
                   bags: parseInt(quantity),
-                  recipientName: buyerName,  // Backend expects recipientName
-                  notes: buyerPhone,  // Store phone in notes field
+                  recipientName: 'TBD',  // Placeholder - owner will provide
+                  notes: notes || undefined,
                 }),
               });
 
@@ -82,7 +71,7 @@ Phone: ${buyerPhone}`,
               if (data.success) {
                 Alert.alert(
                   'Request Submitted',
-                  'Your dispatch request has been sent to the owner for approval. You will be notified once approved.',
+                  'Your dispatch request has been sent to the owner. The owner will add buyer details and approve.',
                   [
                     {
                       text: 'OK',
@@ -105,7 +94,7 @@ Phone: ${buyerPhone}`,
     );
   };
 
-  const isValid = cropType && quantity && parseInt(quantity) > 0 && buyerName.trim() && buyerPhone.trim();
+  const isValid = cropType && quantity && parseInt(quantity) > 0;
 
   return (
     <View style={styles.container}>
@@ -123,8 +112,16 @@ Phone: ${buyerPhone}`,
 
           {/* Info Banner */}
           <View style={styles.infoSection}>
-            <Text style={styles.infoTitle}>Sale Request</Text>
-            <Text style={styles.infoText}>Create dispatch request for owner approval</Text>
+            <Text style={styles.infoTitle}>Request Dispatch</Text>
+            <Text style={styles.infoText}>Submit a generic dispatch request</Text>
+          </View>
+
+          {/* Owner Notice */}
+          <View style={styles.ownerNotice}>
+            <Text style={styles.ownerNoticeTitle}>ℹ️ Owner Will Complete</Text>
+            <Text style={styles.ownerNoticeText}>
+              You only need to specify crop and quantity. The owner will add buyer details, batch allocation, and payment terms during approval.
+            </Text>
           </View>
 
           {/* Form */}
@@ -188,38 +185,27 @@ Phone: ${buyerPhone}`,
               />
             </View>
 
-            {/* Buyer Name */}
+            {/* Optional Notes */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Buyer Name</Text>
+              <Text style={styles.label}>Notes (Optional)</Text>
               <TextInput
-                value={buyerName}
-                onChangeText={setBuyerName}
-                placeholder="Enter buyer's full name"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Add any notes for the owner..."
                 placeholderTextColor="#a8a29e"
-                maxLength={100}
-                style={styles.input}
-              />
-            </View>
-
-            {/* Buyer Phone */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Buyer Phone</Text>
-              <TextInput
-                value={buyerPhone}
-                onChangeText={setBuyerPhone}
-                placeholder="Enter phone number"
-                placeholderTextColor="#a8a29e"
-                keyboardType="phone-pad"
-                maxLength={20}
-                style={styles.input}
+                multiline
+                numberOfLines={3}
+                maxLength={200}
+                style={[styles.input, styles.textArea]}
               />
             </View>
 
             {/* Approval Notice */}
             <View style={styles.noticeBox}>
-              <Text style={styles.noticeTitle}>Approval Required</Text>
+              <Text style={styles.noticeTitle}>Owner Approval Required</Text>
               <Text style={styles.noticeText}>
-                This dispatch request will be sent to the owner for approval. You cannot proceed until approved.
+                The owner will review this request and add:
+                {`\n`}• Buyer details and contact{`\n`}• Batch selection{`\n`}• Payment terms and pricing
               </Text>
             </View>
 
@@ -423,5 +409,30 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 17,
     fontWeight: '700',
+  },
+  ownerNotice: {
+    backgroundColor: '#dbeafe',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  ownerNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginBottom: 6,
+  },
+  ownerNoticeText: {
+    fontSize: 13,
+    color: '#1e3a8a',
+    lineHeight: 18,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+    paddingTop: 12,
   },
 });

@@ -1,15 +1,23 @@
 /**
- * Event Types - The Six Sacred Events (MVP)
- * These are the ONLY event types allowed in the system.
- * NO modifications without spec approval.
+ * Event Types - Extended Event System
+ * Core 6 events (MVP) + Extended events for batch/payment/tools
+ * All events are immutable and append-only.
  */
 export enum EventType {
+  // Core inventory events
   GENESIS_INVENTORY_RECORDED = 'GENESIS_INVENTORY_RECORDED',
   STOCK_INBOUND_RECORDED = 'STOCK_INBOUND_RECORDED',
+  
+  // Outbound workflow events
   OUTBOUND_REQUESTED = 'OUTBOUND_REQUESTED',
   OUTBOUND_APPROVED = 'OUTBOUND_APPROVED',
   OUTBOUND_REJECTED = 'OUTBOUND_REJECTED',
   DISPATCH_EXECUTED = 'DISPATCH_EXECUTED',
+  
+  // Extended events (v2 features)
+  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
+  TOOL_ASSIGNED = 'TOOL_ASSIGNED',
+  TOOL_RETURNED = 'TOOL_RETURNED',
 }
 
 /**
@@ -50,4 +58,51 @@ export enum CropType {
   SOYBEANS = 'Soybeans',
   WHEAT = 'Wheat',
   MILLET = 'Millet',
+}
+
+/**
+ * Batch Source Types
+ */
+export enum BatchSourceType {
+  OWN_FARM = 'OWN_FARM',
+  SME = 'SME',
+  SMALL_FARMER = 'SMALL_FARMER',
+}
+
+/**
+ * Buyer Classification Types
+ */
+export enum BuyerType {
+  AGGREGATOR = 'AGGREGATOR',
+  OFF_TAKER = 'OFF_TAKER',
+  OPEN_MARKET = 'OPEN_MARKET',
+}
+
+/**
+ * Payment Methods
+ */
+export enum PaymentMethod {
+  CASH = 'CASH',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  CHEQUE = 'CHEQUE',
+  IN_KIND = 'IN_KIND',
+  CREDIT = 'CREDIT',
+}
+
+/**
+ * Payment Status
+ */
+export enum PaymentStatus {
+  PAID = 'PAID',
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+}
+
+/**
+ * Tool Status
+ */
+export enum ToolStatus {
+  AVAILABLE = 'AVAILABLE',
+  ASSIGNED = 'ASSIGNED',
+  RETIRED = 'RETIRED',
 }

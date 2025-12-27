@@ -56,4 +56,30 @@ router.post(
   attendantController.executeDispatch
 );
 
+/**
+ * GET /attendant/tools
+ * Get attendant's assigned tools
+ */
+router.get('/tools', attendantController.getMyTools);
+
+/**
+ * POST /attendant/tools/:toolId/return
+ * Return a tool
+ */
+router.post(
+  '/tools/:toolId/return',
+  attendantController.returnToolValidation,
+  attendantController.returnTool
+);
+
+/**
+ * POST /attendant/requests/:requestId/confirm-payment
+ * Confirm payment received (for credit payments)
+ */
+router.post(
+  '/requests/:requestId/confirm-payment',
+  attendantController.confirmPaymentValidation,
+  attendantController.confirmPayment
+);
+
 export default router;

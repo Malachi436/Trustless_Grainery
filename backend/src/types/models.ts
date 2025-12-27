@@ -1,4 +1,4 @@
-import { EventType, UserRole, WarehouseStatus, RequestStatus, CropType } from './enums';
+import { EventType, UserRole, WarehouseStatus, RequestStatus, CropType, BatchSourceType, BuyerType, PaymentMethod, PaymentStatus, ToolStatus } from './enums';
 
 /**
  * Core Event Structure - The Source of Truth
@@ -16,6 +16,7 @@ export interface Event {
 
 /**
  * Event Payloads - Type-safe per event type
+ * Extended with v2 payloads
  */
 export type EventPayload =
   | GenesisInventoryPayload
@@ -23,7 +24,10 @@ export type EventPayload =
   | OutboundRequestedPayload
   | OutboundApprovedPayload
   | OutboundRejectedPayload
-  | DispatchExecutedPayload;
+  | DispatchExecutedPayload
+  | PaymentConfirmedPayload
+  | ToolAssignedPayload
+  | ToolReturnedPayload;
 
 export interface GenesisInventoryPayload {
   crop: CropType;
@@ -46,8 +50,8 @@ export interface OutboundRequestedPayload {
   request_id: string; // UUID
   crop: CropType;
   bag_quantity: number;
-  buyer_name: string;
-  buyer_phone: string;
+  buyer_name: string; // Optional for attendant requests (empty string)
+  buyer_phone: string; // Optional for attendant requests (empty string)
   notes?: string;
 }
 
@@ -55,6 +59,18 @@ export interface OutboundApprovedPayload {
   request_id: string;
   approved_by: string; // Owner user_id
   notes?: string;
+  // v2 fields (backward compatible - all optional)
+  batch_breakdown?: Array<{
+    batch_id: string;
+    bags: number;
+  }>;
+  buyer_type?: BuyerType;
+  buyer_name_final?: string; // Final buyer name (owner-provided)
+  buyer_phone_final?: string; // Final buyer phone (owner-provided)
+  payment_method?: PaymentMethod;
+  payment_status?: PaymentStatus;
+  price_per_bag?: number;
+  total_amount?: number;
 }
 
 export interface OutboundRejectedPayload {
@@ -68,6 +84,35 @@ export interface DispatchExecutedPayload {
   executed_by: string; // Attendant user_id
   photo_urls: string[]; // Mandatory
   notes?: string;
+}
+
+/**
+ * Payment Confirmed Payload (New Event)
+ */
+export interface PaymentConfirmedPayload {
+  request_id: string; // Links to outbound request
+  confirmed_by: string; // Attendant user_id
+  photo_urls?: string[]; // Optional proof of payment
+  notes?: string;
+}
+
+/**
+ * Tool Assigned Payload (New Event)
+ */
+export interface ToolAssignedPayload {
+  tool_id: string;
+  assigned_to: string; // Attendant user_id
+  assigned_by: string; // Owner user_id
+  notes?: string;
+}
+
+/**
+ * Tool Returned Payload (New Event)
+ */
+export interface ToolReturnedPayload {
+  tool_id: string;
+  returned_by: string; // Attendant user_id
+  condition_notes?: string;
 }
 
 /**
@@ -170,4 +215,45 @@ export interface PaginatedResponse<T> {
     total: number;
     totalPages: number;
   };
+}
+
+/**
+ * Batch Model (New)
+ */
+export interface Batch {
+  id: string;
+  warehouse_id: string;
+  crop_type: CropType;
+  source_type: BatchSourceType;
+  source_name: string | null;
+  source_location: string | null;
+  purchase_price_per_bag: number | null;
+  initial_bags: number;
+  remaining_bags: number; // Derived from events
+  created_at: Date;
+  created_by: string;
+}
+
+/**
+ * Tool Model (New)
+ */
+export interface Tool {
+  id: string;
+  warehouse_id: string;
+  tool_type: string;
+  internal_tag: string; // e.g., "HOE-001"
+  status: ToolStatus;
+  assigned_to_attendant_id: string | null;
+  created_at: Date;
+}
+
+/**
+ * Batch Allocation (Projection)
+ */
+export interface BatchAllocation {
+  id: string;
+  request_id: string;
+  batch_id: string;
+  bags_allocated: number;
+  created_at: Date;
 }

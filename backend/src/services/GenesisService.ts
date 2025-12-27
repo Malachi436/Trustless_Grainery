@@ -1,9 +1,10 @@
 import eventService from './EventService';
 import warehouseService from './WarehouseService';
 import stockProjectionService from './StockProjectionService';
+import batchService from './BatchService';
 import db from '../config/database';
 import logger from '../config/logger';
-import { EventType, CropType, WarehouseStatus } from '../types/enums';
+import { EventType, CropType, WarehouseStatus, BatchSourceType } from '../types/enums';
 import { GenesisInventoryPayload, Event } from '../types/models';
 import { AppError } from '../middleware/errorHandler';
 
@@ -16,11 +17,13 @@ import { AppError } from '../middleware/errorHandler';
  * - Requires photo evidence
  * - Requires owner confirmation
  * - Changes warehouse status to GENESIS_PENDING -> ACTIVE
+ * - Optionally creates initial batches (v2 feature)
  */
 export class GenesisService {
   /**
    * Record Genesis Inventory (Admin only)
    * This is the FIRST event in a warehouse's lifecycle
+   * Extended to optionally create initial batches
    */
   async recordGenesis(
     warehouseId: string,
@@ -28,8 +31,13 @@ export class GenesisService {
     crop: CropType,
     bagQuantity: number,
     photoUrls: string[],
-    notes?: string
-  ): Promise<Event> {
+    notes?: string,
+    // v2 batch parameters (optional)
+    createBatch?: boolean,
+    batchSourceType?: BatchSourceType,
+    sourceName?: string,
+    sourceLocation?: string
+  ): Promise<{ event: Event; batchId?: string }> {
     // Photo evidence is optional (can be empty array)
     // Check warehouse exists and is in SETUP status
     const warehouse = await warehouseService.getWarehouseById(warehouseId);
@@ -56,7 +64,7 @@ export class GenesisService {
       notes,
     };
 
-    const event = await db.transaction(async (client) => {
+    const result = await db.transaction(async (client) => {
       // Create event
       const genesisEvent = await eventService.createEvent(
         warehouseId,
@@ -77,17 +85,41 @@ export class GenesisService {
         );
       }
 
-      return genesisEvent;
+      let batchId: string | undefined;
+
+      // v2: Optionally create initial batch
+      if (createBatch) {
+        const batch = await batchService.createBatch(
+          warehouseId,
+          crop,
+          bagQuantity,
+          adminId,
+          batchSourceType || BatchSourceType.OWN_FARM,
+          sourceName,
+          sourceLocation
+        );
+        batchId = batch.id;
+        
+        logger.info('✅ Initial batch created during genesis', {
+          batchId,
+          crop,
+          bagQuantity,
+          sourceType: batchSourceType,
+        });
+      }
+
+      return { event: genesisEvent, batchId };
     });
 
     logger.info('✅ Genesis inventory recorded', {
       warehouseId,
       crop,
       bagQuantity,
-      eventId: event.event_id,
+      eventId: result.event.event_id,
+      batchCreated: !!result.batchId,
     });
 
-    return event;
+    return result;
   }
 
   /**

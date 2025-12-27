@@ -4,16 +4,20 @@ import stockProjectionService from '../services/StockProjectionService';
 import outboundService from '../services/OutboundService';
 import genesisService from '../services/GenesisService';
 import eventService from '../services/EventService';
-import { RequestStatus } from '../types/enums';
+import batchService from '../services/BatchService';
+import toolService from '../services/ToolService';
+import { RequestStatus, CropType, ToolStatus } from '../types/enums';
 import { AppError } from '../middleware/errorHandler';
 
 /**
  * Owner Controller
  * OWNER role endpoints:
  * - View warehouse dashboard (stock, pending approvals)
- * - Approve/reject dispatch requests
+ * - Approve/reject dispatch requests (with batch/payment details - v2)
  * - View audit timeline
  * - Confirm genesis inventory (one-time)
+ * - Manage batches (v2)
+ * - Manage tool assignments (v2)
  */
 
 /**
@@ -213,11 +217,10 @@ export const getAuditTimeline = async (req: Request, res: Response): Promise<voi
       throw new AppError('Warehouse not assigned', 400);
     }
 
-    const { limit = 100, offset = 0 } = req.query;
+    const { limit = 100 } = req.query;
 
     const events = await eventService.getEventsByWarehouse(req.user.warehouse_id, {
       limit: Number(limit),
-      offset: Number(offset),
     });
 
     res.json({
@@ -275,6 +278,118 @@ export const confirmGenesis = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : 'Failed to confirm genesis',
+      500
+    );
+  }
+};
+
+/**
+ * Get all batches for warehouse
+ * GET /api/owner/batches
+ */
+export const getBatches = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.warehouse_id) {
+      throw new AppError('Warehouse not assigned', 400);
+    }
+
+    const { crop, available } = req.query;
+    const cropType = crop ? (crop as CropType) : undefined;
+    const onlyAvailable = available === 'true';
+
+    const batches = await batchService.getWarehouseBatches(
+      req.user.warehouse_id,
+      cropType,
+      onlyAvailable
+    );
+
+    res.json({
+      success: true,
+      data: batches,
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to get batches',
+      500
+    );
+  }
+};
+
+/**
+ * Get all tools for warehouse
+ * GET /api/owner/tools
+ */
+export const getTools = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.warehouse_id) {
+      throw new AppError('Warehouse not assigned', 400);
+    }
+
+    const { status } = req.query;
+    const toolStatus = status ? (status as ToolStatus) : undefined;
+
+    const tools = await toolService.getWarehouseTools(
+      req.user.warehouse_id,
+      toolStatus
+    );
+
+    res.json({
+      success: true,
+      data: tools,
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to get tools',
+      500
+    );
+  }
+};
+
+/**
+ * Assign tool to attendant
+ * POST /api/owner/tools/:toolId/assign
+ */
+export const assignToolValidation = [
+  body('attendantId').isUUID().withMessage('Valid attendant ID required'),
+  body('notes').optional().isString(),
+];
+
+export const assignTool = async (req: Request, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array(),
+    });
+    return;
+  }
+
+  try {
+    if (!req.user?.user_id) {
+      throw new AppError('User not authenticated', 401);
+    }
+
+    const { toolId } = req.params;
+    const { attendantId, notes } = req.body;
+
+    const result = await toolService.assignTool(
+      toolId,
+      attendantId,
+      req.user.user_id,
+      notes
+    );
+
+    res.json({
+      success: true,
+      data: {
+        eventId: result.eventId,
+        message: 'Tool assigned successfully',
+      },
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to assign tool',
       500
     );
   }

@@ -27,6 +27,13 @@ export interface AuthState {
 
 export type CropType = 'wheat' | 'rice' | 'maize' | 'sorghum' | 'barley' | 'millet' | 'soybeans';
 
+// v2 Enums
+export type BatchSourceType = 'OWN_FARM' | 'SME' | 'SMALL_FARMER';
+export type BuyerType = 'AGGREGATOR' | 'OFF_TAKER' | 'OPEN_MARKET';
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'IN_KIND' | 'CREDIT';
+export type PaymentStatus = 'PAID' | 'PENDING' | 'CONFIRMED';
+export type ToolStatus = 'AVAILABLE' | 'ASSIGNED' | 'RETIRED';
+
 export interface StockItem {
   cropType: CropType;
   bagCount: number;
@@ -47,6 +54,12 @@ export interface OutboundRequest {
   dispatchedAt?: string;
   requestedBy: string;
   approvedBy?: string;
+  // v2 fields
+  buyerType?: BuyerType;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
+  pricePerBag?: number;
+  totalAmount?: number;
 }
 
 export interface InboundEntry {
@@ -74,7 +87,10 @@ export type AuditEventType =
   | 'outbound_request'
   | 'approval'
   | 'rejection'
-  | 'dispatch';
+  | 'dispatch'
+  | 'payment_confirmed'
+  | 'tool_assigned'
+  | 'tool_returned';
 
 export interface AuditEvent {
   id: string;
@@ -107,4 +123,37 @@ export interface ApiResponse<T> {
 export interface NetworkState {
   isConnected: boolean;
   isInternetReachable: boolean;
+}
+
+// v2 Models
+export interface Batch {
+  id: string;
+  warehouseId: string;
+  cropType: CropType;
+  sourceType: BatchSourceType;
+  sourceName?: string;
+  sourceLocation?: string;
+  purchasePricePerBag?: number;
+  initialBags: number;
+  remainingBags: number;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface Tool {
+  id: string;
+  warehouseId: string;
+  toolType: string;
+  internalTag: string;
+  status: ToolStatus;
+  assignedTo?: string;
+  createdAt: string;
+}
+
+export interface BatchAllocation {
+  id: string;
+  requestId: string;
+  batchId: string;
+  bags: number;
+  createdAt: string;
 }

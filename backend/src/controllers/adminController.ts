@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import authService from '../services/AuthService';
 import warehouseService from '../services/WarehouseService';
 import genesisService from '../services/GenesisService';
+import toolService from '../services/ToolService';
 import db from '../config/database';
 import logger from '../config/logger';
 import { UserRole, WarehouseStatus, CropType } from '../types/enums';
@@ -277,6 +278,9 @@ export const recordGenesisValidation = [
     return true;
   }),
   body('inventory.*.bags').isInt({ min: 1 }).withMessage('Bags must be a positive integer'),
+  body('tools').optional().isArray().withMessage('Tools must be an array'),
+  body('tools.*.toolType').optional().isString().withMessage('Tool type must be a string'),
+  body('tools.*.quantity').optional().isInt({ min: 1 }).withMessage('Tool quantity must be a positive integer'),
   body('photoUrls').optional().isArray().withMessage('Photo URLs must be an array'),
   body('notes').optional().isString().withMessage('Notes must be a string'),
 ];
@@ -299,7 +303,7 @@ export const recordGenesis = async (req: Request, res: Response): Promise<void> 
 
   try {
     const { warehouseId } = req.params;
-    const { inventory, photoUrls, notes } = req.body;
+    const { inventory, tools, photoUrls, notes } = req.body;
     const adminId = req.user?.user_id;
 
     if (!adminId) {
@@ -324,15 +328,37 @@ export const recordGenesis = async (req: Request, res: Response): Promise<void> 
       events.push(event);
     }
 
+    // v2: Create tools if provided
+    const createdTools = [];
+    if (tools && Array.isArray(tools) && tools.length > 0) {
+      for (const toolItem of tools) {
+        if (toolItem.toolType && toolItem.quantity > 0) {
+          const toolRecords = await toolService.createTools(
+            warehouseId,
+            toolItem.toolType,
+            toolItem.quantity,
+            adminId
+          );
+          createdTools.push(...toolRecords);
+        }
+      }
+    }
+
     res.status(201).json({
       success: true,
       data: {
         events,
-        message: 'Genesis inventory recorded successfully. Warehouse status updated to GENESIS_PENDING.',
+        tools: createdTools,
+        message: `Genesis inventory recorded successfully${createdTools.length > 0 ? ` with ${createdTools.length} tools` : ''}. Warehouse status updated to GENESIS_PENDING.`,
       },
     });
 
-    logger.info('✅ Genesis inventory recorded by admin', { warehouseId, adminId, itemCount: inventory.length });
+    logger.info('✅ Genesis inventory recorded by admin', { 
+      warehouseId, 
+      adminId, 
+      itemCount: inventory.length,
+      toolCount: createdTools.length,
+    });
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : 'Failed to record genesis',

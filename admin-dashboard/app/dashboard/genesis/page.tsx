@@ -15,11 +15,17 @@ interface InventoryItem {
   bags: number;
 }
 
+interface ToolItem {
+  toolType: string;
+  quantity: number;
+}
+
 export default function GenesisPage() {
   const router = useRouter();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [inventory, setInventory] = useState<InventoryItem[]>([{ cropType: '', bags: 0 }]);
+  const [tools, setTools] = useState<ToolItem[]>([]);
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,6 +75,20 @@ export default function GenesisPage() {
     setInventory(updated);
   };
 
+  const addToolRow = () => {
+    setTools([...tools, { toolType: '', quantity: 1 }]);
+  };
+
+  const removeToolRow = (index: number) => {
+    setTools(tools.filter((_, i) => i !== index));
+  };
+
+  const updateToolItem = (index: number, field: keyof ToolItem, value: string | number) => {
+    const updated = [...tools];
+    updated[index] = { ...updated[index], [field]: value };
+    setTools(updated);
+  };
+
   const handleSubmitGenesis = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWarehouse || inventory.length === 0) {
@@ -87,6 +107,7 @@ export default function GenesisPage() {
         },
         body: JSON.stringify({
           inventory: inventory.filter(item => item.cropType && item.bags > 0),
+          tools: tools.filter(item => item.toolType && item.quantity > 0),
           notes,
           photoUrls: photos,
         }),
@@ -97,6 +118,7 @@ export default function GenesisPage() {
         alert('Genesis inventory recorded! Awaiting owner confirmation.');
         setSelectedWarehouse('');
         setInventory([{ cropType: '', bags: 0 }]);
+        setTools([]);
         setNotes('');
         setPhotos([]);
         fetchWarehouses();
@@ -234,6 +256,75 @@ export default function GenesisPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Tool Register (Optional) */}
+            <div 
+              className="rounded-2xl p-6"
+              style={{
+                background: 'rgba(255, 255, 255, 0.75)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(138, 156, 123, 0.2)'
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-medium" style={{ color: '#1e1e1e' }}>Tool Register (Optional)</h2>
+                  <p className="text-sm mt-1" style={{ color: '#6b6f69' }}>Register tools for accountability tracking</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addToolRow}
+                  className="px-4 py-2 rounded-lg font-medium"
+                  style={{ background: 'linear-gradient(135deg, #d4b896 0%, #c8a97f 100%)', color: '#1e1e1e' }}
+                >
+                  + Add Tool
+                </button>
+              </div>
+
+              {tools.length > 0 && (
+                <div className="space-y-3">
+                  {tools.map((tool, index) => (
+                    <div key={index} className="flex gap-3">
+                      <input
+                        type="text"
+                        value={tool.toolType}
+                        onChange={(e) => updateToolItem(index, 'toolType', e.target.value)}
+                        className="flex-1 px-4 py-2.5 rounded-lg"
+                        style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                        placeholder="Tool type (e.g., Hoe, Spade, Rake)"
+                        required
+                      />
+                      <input
+                        type="number"
+                        value={tool.quantity || ''}
+                        onChange={(e) => updateToolItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                        className="w-32 px-4 py-2.5 rounded-lg"
+                        style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                        placeholder="Qty"
+                        min="1"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeToolRow(index)}
+                        className="p-2.5 rounded-lg"
+                        style={{ background: 'rgba(184, 92, 92, 0.2)', color: '#b85c5c' }}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {tools.length === 0 && (
+                <div className="text-center py-8" style={{ color: '#6b6f69' }}>
+                  <p className="text-sm">No tools added. Click "Add Tool" to start tracking tools.</p>
+                </div>
+              )}
             </div>
 
             {/* Notes */}

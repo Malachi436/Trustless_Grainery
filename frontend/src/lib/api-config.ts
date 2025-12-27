@@ -58,6 +58,9 @@ export const API_ENDPOINTS = {
   OWNER_APPROVE: (requestId: string) => `${API_BASE_URL}/api/owner/approvals/${requestId}/approve`,
   OWNER_REJECT: (requestId: string) => `${API_BASE_URL}/api/owner/approvals/${requestId}/reject`,
   OWNER_AUDIT: `${API_BASE_URL}/api/owner/audit`,
+  OWNER_BATCHES: `${API_BASE_URL}/api/owner/batches`,
+  OWNER_TOOLS: `${API_BASE_URL}/api/owner/tools`,
+  OWNER_ASSIGN_TOOL: (toolId: string) => `${API_BASE_URL}/api/owner/tools/${toolId}/assign`,
   
   // Attendant
   ATTENDANT_HOME: `${API_BASE_URL}/api/attendant/home`,
@@ -65,6 +68,9 @@ export const API_ENDPOINTS = {
   ATTENDANT_REQUEST_DISPATCH: `${API_BASE_URL}/api/attendant/requests`,
   ATTENDANT_MY_REQUESTS: `${API_BASE_URL}/api/attendant/requests`,
   ATTENDANT_EXECUTE: (requestId: string) => `${API_BASE_URL}/api/attendant/requests/${requestId}/execute`,
+  ATTENDANT_TOOLS: `${API_BASE_URL}/api/attendant/tools`,
+  ATTENDANT_RETURN_TOOL: (toolId: string) => `${API_BASE_URL}/api/attendant/tools/${toolId}/return`,
+  ATTENDANT_CONFIRM_PAYMENT: (requestId: string) => `${API_BASE_URL}/api/attendant/requests/${requestId}/confirm-payment`,
   
   // Admin
   ADMIN_CREATE_WAREHOUSE: `${API_BASE_URL}/api/admin/warehouses`,

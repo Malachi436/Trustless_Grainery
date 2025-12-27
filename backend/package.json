@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "migrate": "ts-node src/database/migrate.ts",
+    "migrate:v2": "ts-node src/database/migrate-v2.ts",
+    "migrate:multi-owner": "ts-node src/database/migrate-multi-owner.ts",
     "seed": "ts-node src/database/seed.ts",
     "test": "jest",
     "lint": "eslint src --ext .ts"

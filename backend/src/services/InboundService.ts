@@ -1,9 +1,10 @@
 import eventService from './EventService';
 import stockProjectionService from './StockProjectionService';
 import warehouseService from './WarehouseService';
+import batchService from './BatchService';
 import db from '../config/database';
 import logger from '../config/logger';
-import { EventType, CropType } from '../types/enums';
+import { EventType, CropType, BatchSourceType } from '../types/enums';
 import { StockInboundPayload, Event } from '../types/models';
 import { AppError } from '../middleware/errorHandler';
 
@@ -16,10 +17,12 @@ import { AppError } from '../middleware/errorHandler';
  * - Works offline-first (local_timestamp preserved)
  * - Server timestamp is authoritative
  * - Immediately updates stock projection
+ * - Optionally creates batch for batch-aware tracking (v2 feature)
  */
 export class InboundService {
   /**
    * Log inbound stock (Attendant only)
+   * Extended to optionally create batch
    */
   async logInbound(
     warehouseId: string,
@@ -29,8 +32,14 @@ export class InboundService {
     source: string,
     photoUrls: string[],
     localTimestamp?: string,
-    notes?: string
-  ): Promise<Event> {
+    notes?: string,
+    // v2 batch parameters (optional)
+    createBatch?: boolean,
+    batchSourceType?: BatchSourceType,
+    sourceName?: string,
+    sourceLocation?: string,
+    purchasePricePerBag?: number
+  ): Promise<{ event: Event; batchId?: string }> {
     // Validate photo evidence
     if (!photoUrls || photoUrls.length === 0) {
       throw new AppError('Photo evidence is mandatory for inbound stock', 400);
@@ -62,7 +71,7 @@ export class InboundService {
       notes,
     };
 
-    const event = await db.transaction(async (client) => {
+    const result = await db.transaction(async (client) => {
       // Create event
       const inboundEvent = await eventService.createEvent(
         warehouseId,
@@ -75,7 +84,31 @@ export class InboundService {
       // Update stock projection
       await stockProjectionService.updateProjection(warehouseId, inboundEvent, client);
 
-      return inboundEvent;
+      let batchId: string | undefined;
+
+      // v2: Optionally create batch
+      if (createBatch) {
+        const batch = await batchService.createBatch(
+          warehouseId,
+          crop,
+          bagQuantity,
+          attendantId,
+          batchSourceType || BatchSourceType.OWN_FARM,
+          sourceName,
+          sourceLocation || source,
+          purchasePricePerBag
+        );
+        batchId = batch.id;
+        
+        logger.info('✅ Batch created during inbound', {
+          batchId,
+          crop,
+          bagQuantity,
+          sourceType: batchSourceType,
+        });
+      }
+
+      return { event: inboundEvent, batchId };
     });
 
     logger.info('✅ Inbound stock logged', {
@@ -84,10 +117,11 @@ export class InboundService {
       crop,
       bagQuantity,
       source,
-      eventId: event.event_id,
+      eventId: result.event.event_id,
+      batchCreated: !!result.batchId,
     });
 
-    return event;
+    return result;
   }
 
   /**

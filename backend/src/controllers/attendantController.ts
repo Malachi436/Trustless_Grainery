@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import inboundService from '../services/InboundService';
 import outboundService from '../services/OutboundService';
 import stockProjectionService from '../services/StockProjectionService';
+import toolService from '../services/ToolService';
 import { CropType } from '../types/enums';
 import { AppError } from '../middleware/errorHandler';
 
@@ -14,6 +15,8 @@ import { AppError } from '../middleware/errorHandler';
  * - Request dispatch
  * - Execute approved dispatch (with photo)
  * - View own requests
+ * - Manage tools (view, return) - v2
+ * - Confirm payment (for credit) - v2
  */
 
 /**
@@ -108,7 +111,7 @@ export const logInbound = async (req: Request, res: Response): Promise<void> => 
     // Save photo (for now, using base64 - in production, upload to S3)
     const photoUrl = `data:image/jpeg;base64,${photoBase64}`;
 
-    const result = await inboundService.recordInbound(
+    const result = await inboundService.logInbound(
       req.user.warehouse_id,
       req.user.user_id,
       cropType,
@@ -120,8 +123,8 @@ export const logInbound = async (req: Request, res: Response): Promise<void> => 
     res.json({
       success: true,
       data: {
-        eventId: result.eventId,
-        newStockLevel: result.newStockLevel,
+        eventId: result.event.event_id,
+        batchId: result.batchId,
         message: 'Inbound stock logged successfully',
       },
     });
@@ -261,6 +264,128 @@ export const executeDispatch = async (req: Request, res: Response): Promise<void
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : 'Failed to execute dispatch',
+      500
+    );
+  }
+};
+
+/**
+ * Get attendant's assigned tools
+ * GET /api/attendant/tools
+ */
+export const getMyTools = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.user_id) {
+      throw new AppError('User not authenticated', 401);
+    }
+
+    const tools = await toolService.getAttendantTools(req.user.user_id);
+
+    res.json({
+      success: true,
+      data: tools,
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to get tools',
+      500
+    );
+  }
+};
+
+/**
+ * Return a tool
+ * POST /api/attendant/tools/:toolId/return
+ */
+export const returnToolValidation = [
+  body('conditionNotes').optional().isString(),
+];
+
+export const returnTool = async (req: Request, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array(),
+    });
+    return;
+  }
+
+  try {
+    if (!req.user?.user_id) {
+      throw new AppError('User not authenticated', 401);
+    }
+
+    const { toolId } = req.params;
+    const { conditionNotes } = req.body;
+
+    const result = await toolService.returnTool(
+      toolId,
+      req.user.user_id,
+      conditionNotes
+    );
+
+    res.json({
+      success: true,
+      data: {
+        eventId: result.eventId,
+        message: 'Tool returned successfully',
+      },
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to return tool',
+      500
+    );
+  }
+};
+
+/**
+ * Confirm payment received (for credit payments)
+ * POST /api/attendant/requests/:requestId/confirm-payment
+ */
+export const confirmPaymentValidation = [
+  body('photoUrls').optional().isArray(),
+  body('notes').optional().isString(),
+];
+
+export const confirmPayment = async (req: Request, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array(),
+    });
+    return;
+  }
+
+  try {
+    if (!req.user?.user_id) {
+      throw new AppError('User not authenticated', 401);
+    }
+
+    const { requestId } = req.params;
+    const { photoUrls, notes } = req.body;
+
+    const result = await outboundService.confirmPayment(
+      requestId,
+      req.user.user_id,
+      photoUrls,
+      notes
+    );
+
+    res.json({
+      success: true,
+      data: {
+        eventId: result.eventId,
+        message: 'Payment confirmed successfully',
+      },
+    });
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Failed to confirm payment',
       500
     );
   }

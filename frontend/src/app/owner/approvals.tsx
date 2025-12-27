@@ -13,12 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
+import ApprovalDetailModal from '@/components/requests/approval-detail-modal';
 
 export default function ApprovalsScreen() {
   const router = useRouter();
   const { accessToken } = useAuthStore();
   const [approvals, setApprovals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   useEffect(() => {
     fetchApprovals();
@@ -48,40 +51,9 @@ export default function ApprovalsScreen() {
     }
   };
 
-  const handleApprove = async (requestId: string) => {
-    Alert.alert(
-      'Approve Request',
-      'Are you sure you want to approve this dispatch request?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          style: 'default',
-          onPress: async () => {
-            try {
-              const response = await fetch(API_ENDPOINTS.OWNER_APPROVE(requestId), {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                },
-              });
-
-              const data = await response.json();
-
-              if (data.success) {
-                Alert.alert('Approved', 'Request has been approved. Attendant can now dispatch.');
-                fetchApprovals(); // Refresh list
-              } else {
-                throw new Error(data.error || 'Failed to approve');
-              }
-            } catch (error: any) {
-              console.error('Approve error:', error);
-              Alert.alert('Error', error.message || 'Failed to approve request');
-            }
-          },
-        },
-      ]
-    );
+  const handleApprove = (request: any) => {
+    setSelectedRequest(request);
+    setShowDetailModal(true);
   };
 
   const handleReject = async (requestId: string) => {
@@ -176,27 +148,33 @@ export default function ApprovalsScreen() {
                 </View>
               </View>
 
-              {/* Buyer Info */}
+              {/* Buyer Info - Show TBD if not provided */}
               <View style={styles.infoRow}>
                 <View style={styles.infoIconContainer}>
                   <Text style={styles.infoIcon}>👤</Text>
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Buyer</Text>
-                  <Text style={styles.infoValue}>{approval.buyer_name || 'N/A'}</Text>
+                  <Text style={styles.infoValue}>
+                    {approval.buyer_name && approval.buyer_name !== 'TBD' 
+                      ? approval.buyer_name 
+                      : 'To be determined'}
+                  </Text>
                 </View>
               </View>
 
-              {/* Phone/Notes */}
-              <View style={styles.infoRow}>
-                <View style={styles.infoIconContainer}>
-                  <Text style={styles.infoIcon}>📱</Text>
+              {/* Notes */}
+              {approval.notes && (
+                <View style={styles.infoRow}>
+                  <View style={styles.infoIconContainer}>
+                    <Text style={styles.infoIcon}>📝</Text>
+                  </View>
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Notes</Text>
+                    <Text style={styles.infoValue}>{approval.notes}</Text>
+                  </View>
                 </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Phone</Text>
-                  <Text style={styles.infoValue}>{approval.buyer_phone || approval.notes || 'N/A'}</Text>
-                </View>
-              </View>
+              )}
 
               {/* Submitted By */}
               <View style={styles.infoRow}>
@@ -228,11 +206,11 @@ export default function ApprovalsScreen() {
 
                 <TouchableOpacity
                   style={styles.approveButton}
-                  onPress={() => handleApprove(approval.request_id)}
+                  onPress={() => handleApprove(approval)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.approveIcon}>✓</Text>
-                  <Text style={styles.approveText}>Approve</Text>
+                  <Text style={styles.approveIcon}>→</Text>
+                  <Text style={styles.approveText}>Review & Approve</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -242,6 +220,17 @@ export default function ApprovalsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Detail Modal */}
+      <ApprovalDetailModal
+        visible={showDetailModal}
+        request={selectedRequest}
+        onClose={() => setShowDetailModal(false)}
+        onSuccess={() => {
+          fetchApprovals();
+          setShowDetailModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
