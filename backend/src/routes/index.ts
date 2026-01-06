@@ -4,6 +4,7 @@ import adminRoutes from './adminRoutes';
 import attendantRoutes from './attendantRoutes';
 import ownerRoutes from './ownerRoutes';
 import ownerAnalyticsRoutes from './ownerAnalyticsRoutes';
+import fieldAgentRoutes from './fieldAgentRoutes';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/admin', adminRoutes);
 router.use('/attendant', attendantRoutes);
 router.use('/owner', ownerRoutes);
 router.use('/owner/analytics', ownerAnalyticsRoutes);
+router.use('/field-agent', fieldAgentRoutes);
 
 export default router;

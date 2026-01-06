@@ -11,6 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,15 +20,24 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
 
-const CROP_TYPES = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
+const CROP_TYPES = ['MAIZE', 'RICE', 'BEANS', 'SORGHUM', 'MILLET', 'WHEAT', 'CASSAVA', 'GROUNDNUTS', 'SUNFLOWER', 'OTHER'];
+const SOURCE_TYPES = [
+  { label: 'Warehouse', value: 'WAREHOUSE' },
+  { label: 'Outgrower - Recovery', value: 'OUTGROWER_RECOVERY' },
+  { label: 'Outgrower - Aggregated', value: 'OUTGROWER_AGGREGATED' },
+];
 
 export default function LogInboundScreen() {
   const router = useRouter();
   const { accessToken } = useAuthStore();
+  const [inboundSource, setInboundSource] = useState('WAREHOUSE'); // WAREHOUSE, OUTGROWER_RECOVERY, OUTGROWER_AGGREGATED
   const [cropType, setCropType] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [source, setSource] = useState('');
+  const [warehouseSource, setWarehouseSource] = useState(''); // For warehouse inbound only
+  const [farmerId, setFarmerId] = useState(''); // For outgrower inbound
+  const [serviceRecordId, setServiceRecordId] = useState(''); // For recovery only
   const [showCropPicker, setShowCropPicker] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -77,70 +88,108 @@ export default function LogInboundScreen() {
       Alert.alert('Error', 'Please enter a valid quantity');
       return;
     }
-    if (!source.trim()) {
-      Alert.alert('Error', 'Please enter the source location');
-      return;
-    }
     if (!photoUri) {
       Alert.alert('Error', 'Please take a photo for verification');
       return;
     }
 
-    Alert.alert(
-      'Confirm Entry',
-      `Log inbound stock?
+    // Source-specific validation
+    if (inboundSource === 'WAREHOUSE' && !warehouseSource.trim()) {
+      Alert.alert('Error', 'Please enter the warehouse source location');
+      return;
+    }
+    if (inboundSource === 'OUTGROWER_RECOVERY' && !serviceRecordId.trim()) {
+      Alert.alert('Error', 'Please enter the service record ID');
+      return;
+    }
+    if (inboundSource === 'OUTGROWER_AGGREGATED' && !farmerId.trim()) {
+      Alert.alert('Error', 'Please enter the farmer ID');
+      return;
+    }
 
+    const sourceLabel = SOURCE_TYPES.find(s => s.value === inboundSource)?.label || 'Unknown';
+    let confirmMessage = `Log inbound stock?
+
+Inbound Type: ${sourceLabel}
 Crop: ${cropType}
 Quantity: ${quantity} bags
-Source: ${source}
-Photo: Attached`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            try {
-              setIsSubmitting(true);
-              
-              const response = await fetch(API_ENDPOINTS.ATTENDANT_LOG_INBOUND, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({
-                  cropType: cropType.toLowerCase(),
-                  bags: parseInt(quantity),
-                  source,
-                  photoProof: photoUri,
-                }),
-              });
+Photo: Attached`;
 
-              const data = await response.json();
+    if (inboundSource === 'WAREHOUSE') {
+      confirmMessage += `\nSource: ${warehouseSource}`;
+    } else if (inboundSource === 'OUTGROWER_RECOVERY') {
+      confirmMessage += `\nService Record: ${serviceRecordId}`;
+    } else if (inboundSource === 'OUTGROWER_AGGREGATED') {
+      confirmMessage += `\nFarmer: ${farmerId}`;
+    }
 
-              if (data.success) {
-                Alert.alert('Success', 'Stock entry logged successfully!', [
-                  {
-                    text: 'OK',
-                    onPress: () => router.back(),
-                  },
-                ]);
-              } else {
-                throw new Error(data.error || 'Failed to log inbound');
-              }
-            } catch (error: any) {
-              console.error('Log inbound error:', error);
-              Alert.alert('Error', error.message || 'Failed to log inbound stock');
-            } finally {
-              setIsSubmitting(false);
+    Alert.alert('Confirm Entry', confirmMessage, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Confirm',
+        onPress: async () => {
+          try {
+            setIsSubmitting(true);
+
+            let endpoint = API_ENDPOINTS.ATTENDANT_LOG_INBOUND;
+            let body: any = {
+              cropType: cropType.toUpperCase(),
+              bags: parseInt(quantity),
+              photoProof: photoUri,
+            };
+
+            // Route to appropriate endpoint based on inbound source
+            if (inboundSource === 'WAREHOUSE') {
+              endpoint = API_ENDPOINTS.ATTENDANT_LOG_INBOUND;
+              body.source = warehouseSource;
+            } else if (inboundSource === 'OUTGROWER_RECOVERY') {
+              endpoint = API_ENDPOINTS.FIELD_AGENT_RECOVERY_INBOUND;
+              body.serviceRecordId = serviceRecordId;
+              body.farmerId = ''; // Would need to be fetched from service record
+              body.bagsReceived = parseInt(quantity);
+            } else if (inboundSource === 'OUTGROWER_AGGREGATED') {
+              endpoint = API_ENDPOINTS.FIELD_AGENT_AGGREGATED_INBOUND;
+              body.farmerId = farmerId;
+              body.bags = parseInt(quantity);
             }
-          },
+
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify(body),
+            });
+
+            const data = await response.json();
+
+            if (data.success || response.ok) {
+              Alert.alert('Success', `${sourceLabel} inbound recorded successfully!`, [
+                {
+                  text: 'OK',
+                  onPress: () => router.back(),
+                },
+              ]);
+            } else {
+              throw new Error(data.error || 'Failed to log inbound');
+            }
+          } catch (error: any) {
+            console.error('Log inbound error:', error);
+            Alert.alert('Error', error.message || 'Failed to log inbound stock');
+          } finally {
+            setIsSubmitting(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const isValid = cropType && quantity && parseInt(quantity) > 0 && source.trim() && photoUri;
+  const isValid = cropType && quantity && parseInt(quantity) > 0 && photoUri && (
+    (inboundSource === 'WAREHOUSE' && warehouseSource.trim()) ||
+    (inboundSource === 'OUTGROWER_RECOVERY' && serviceRecordId.trim()) ||
+    (inboundSource === 'OUTGROWER_AGGREGATED' && farmerId.trim())
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -228,16 +277,63 @@ Photo: Attached`,
 
             {/* Source */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Source</Text>
-              <TextInput
-                value={source}
-                onChangeText={setSource}
-                placeholder="e.g., Farm A - North Field"
-                placeholderTextColor="#a8a29e"
-                maxLength={100}
-                style={styles.input}
-              />
+              <Text style={styles.label}>Inbound Source *</Text>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowSourcePicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pickerText, !inboundSource && styles.placeholderText]}>
+                  {SOURCE_TYPES.find(s => s.value === inboundSource)?.label || 'Select source type'}
+                </Text>
+                <Text style={styles.chevron}>▼</Text>
+              </TouchableOpacity>
             </View>
+
+            {/* Warehouse Source */}
+            {inboundSource === 'WAREHOUSE' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Source Location *</Text>
+                <TextInput
+                  value={warehouseSource}
+                  onChangeText={setWarehouseSource}
+                  placeholder="e.g., Farm A, Supplier B"
+                  placeholderTextColor="#a8a29e"
+                  maxLength={100}
+                  style={styles.input}
+                />
+              </View>
+            )}
+
+            {/* Recovery Service Record */}
+            {inboundSource === 'OUTGROWER_RECOVERY' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Service Record ID *</Text>
+                <TextInput
+                  value={serviceRecordId}
+                  onChangeText={setServiceRecordId}
+                  placeholder="Farmer service record ID"
+                  placeholderTextColor="#a8a29e"
+                  maxLength={50}
+                  style={styles.input}
+                />
+              </View>
+            )}
+
+            {/* Aggregated Farmer ID */}
+            {inboundSource === 'OUTGROWER_AGGREGATED' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Farmer ID *</Text>
+                <TextInput
+                  value={farmerId}
+                  onChangeText={setFarmerId}
+                  placeholder="Farmer ID"
+                  placeholderTextColor="#a8a29e"
+                  maxLength={50}
+                  style={styles.input}
+                />
+              </View>
+            )}
 
             {/* Photo Evidence */}
             <View style={styles.inputGroup}>
@@ -304,7 +400,7 @@ Photo: Attached`,
             <TouchableOpacity
               style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
               onPress={handleSubmit}
-              disabled={!isValid}
+              disabled={!isValid || isSubmitting}
               activeOpacity={0.8}
             >
               <Text style={styles.submitButtonText}>Submit Stock Entry</Text>
@@ -312,6 +408,47 @@ Photo: Attached`,
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Source Type Modal */}
+      <Modal
+        visible={showSourcePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSourcePicker(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Inbound Source</Text>
+              <TouchableOpacity onPress={() => setShowSourcePicker(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={SOURCE_TYPES}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.sourceOption, inboundSource === item.value && styles.sourceOptionActive]}
+                  onPress={() => {
+                    setInboundSource(item.value);
+                    // Reset source-specific fields
+                    setWarehouseSource('');
+                    setServiceRecordId('');
+                    setFarmerId('');
+                    setShowSourcePicker(false);
+                  }}
+                >
+                  <Text style={[styles.sourceOptionText, inboundSource === item.value && styles.sourceOptionTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.value}
+              scrollEnabled={false}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -553,5 +690,51 @@ const styles = StyleSheet.create({
   },
   removeText: {
     color: '#dc2626',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#9ca3af',
+  },
+  sourceOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  sourceOptionActive: {
+    backgroundColor: '#f0fdf4',
+  },
+  sourceOptionText: {
+    fontSize: 16,
+    color: '#4b5563',
+  },
+  sourceOptionTextActive: {
+    color: '#16a34a',
+    fontWeight: '600',
   },
 });

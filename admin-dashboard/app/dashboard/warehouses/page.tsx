@@ -58,6 +58,32 @@ export default function WarehousesPage() {
     }
   };
 
+  const handleDeleteWarehouse = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this warehouse? All associated data (projections, links) will be removed. Events will be marked for deletion.')) return;
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(API_ENDPOINTS.ADMIN_DELETE_WAREHOUSE(id), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('Warehouse deleted successfully');
+        fetchWarehouses();
+      } else {
+        alert('Failed to delete warehouse: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Failed to delete warehouse:', error);
+      alert('Network error. Please try again.');
+    }
+  };
+
   const handleCreateWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWarehouse.name || !newWarehouse.location || !newWarehouse.ownerName || !newWarehouse.ownerPhone || !newWarehouse.ownerPin) return;
@@ -200,9 +226,20 @@ export default function WarehousesPage() {
                       </svg>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-lg text-xs font-medium ${getStatusColor(warehouse.status)}`}>
-                    {warehouse.status.replace('_', ' ')}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-lg text-xs font-medium ${getStatusColor(warehouse.status)}`}>
+                      {warehouse.status.replace('_', ' ')}
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteWarehouse(e, warehouse.id)}
+                      className="p-1.5 rounded-lg text-danger hover:bg-danger/10 transition-colors"
+                      title="Delete Warehouse"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 <h3 className="text-lg font-medium mb-1" style={{ color: '#1e1e1e' }}>{warehouse.name}</h3>

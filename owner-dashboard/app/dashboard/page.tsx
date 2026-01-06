@@ -23,6 +23,10 @@ export default function OwnerDashboard() {
         return;
       }
 
+      // Debug: log token prefix to verify it exists
+      console.log('Token found, first 20 chars:', token.substring(0, 20));
+      console.log('API endpoint:', API_ENDPOINTS.ANALYTICS_SNAPSHOT);
+
       const response = await fetch(API_ENDPOINTS.ANALYTICS_SNAPSHOT, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -31,7 +35,8 @@ export default function OwnerDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch snapshot');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(`Failed to fetch snapshot (${response.status}): ${errData.error || response.statusText}`);
       }
 
       const data = await response.json();
@@ -246,6 +251,54 @@ export default function OwnerDashboard() {
             </div>
             <p className="text-sm text-gray-600">
               Complete ledger of all transactions
+            </p>
+          </div>
+
+          {/* Expected Inventory (v3: Outgrower) */}
+          <div 
+            className="rounded-2xl p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(59, 130, 246, 0.2)'
+            }}
+            onClick={() => window.location.href = '/dashboard/expected-inventory'}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <span className="text-2xl">🌾</span>
+              </div>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Expected Inventory</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-2">
+              Track Outgrowth
+            </div>
+            <p className="text-sm text-gray-600">
+              Monitor field agent services and recovery
+            </p>
+          </div>
+
+          {/* Recovery Analytics (v3: Outgrower) */}
+          <div 
+            className="rounded-2xl p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(79, 172, 254, 0.2)'
+            }}
+            onClick={() => window.location.href = '/dashboard/recovery-analytics'}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-cyan-100 rounded-xl">
+                <span className="text-2xl">📊</span>
+              </div>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Recovery Analytics</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-2">
+              Recovery Progress
+            </div>
+            <p className="text-sm text-gray-600">
+              Analyze recovery status and completion rates
             </p>
           </div>
         </div>

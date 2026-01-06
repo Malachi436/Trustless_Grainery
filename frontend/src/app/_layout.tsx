@@ -64,6 +64,7 @@ function RootLayoutNav() {
       <Stack.Screen name="setup-in-progress" />
       <Stack.Screen name="attendant" />
       <Stack.Screen name="owner" />
+      <Stack.Screen name="field-agent" />
     </Stack>
   );
 }

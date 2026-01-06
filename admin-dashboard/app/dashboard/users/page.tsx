@@ -8,7 +8,7 @@ interface User {
   id: string;
   name: string;
   phone: string;
-  role: 'OWNER' | 'ATTENDANT';
+  role: 'OWNER' | 'ATTENDANT' | 'FIELD_AGENT';
   warehouseId: string | null;
   warehouseName?: string;
   active: boolean;
@@ -30,7 +30,7 @@ export default function UsersPage() {
     name: '',
     phone: '',
     pin: '',
-    role: 'OWNER' as 'OWNER' | 'ATTENDANT',
+    role: 'OWNER' as 'OWNER' | 'ATTENDANT' | 'FIELD_AGENT',
     warehouseId: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +72,55 @@ export default function UsersPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
+    if (typeof window === 'undefined') {
+      alert('This action can only be performed in the browser');
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        alert('No authentication token found. Please login again.');
+        return;
+      }
+
+      const url = `${API_ENDPOINTS.ADMIN_USERS}/${userId}`;
+      console.log('Delete request - URL:', url);
+      console.log('Delete request - Token exists:', !!token);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('Response received - Status:', response.status);
+      console.log('Response received - OK:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        alert('User deleted successfully');
+        fetchData();
+      } else {
+        alert('Failed to delete user: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Full error:', error);
+      alert('Error deleting user: ' + errorMsg);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.name || !newUser.phone || !newUser.pin) return;
@@ -93,9 +142,13 @@ export default function UsersPage() {
         setShowCreateModal(false);
         setNewUser({ name: '', phone: '', pin: '', role: 'OWNER', warehouseId: '' });
         fetchData();
+        alert('User created successfully');
+      } else {
+        alert('Failed to create user: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Failed to create user:', error);
+      alert('Error connecting to server. Please check backend logs.');
     } finally {
       setIsSubmitting(false);
     }
@@ -200,16 +253,28 @@ export default function UsersPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     <div className="text-right">
                       <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                        user.role === 'OWNER' ? 'bg-primary/20' : 'bg-stone/20'
-                      }`} style={{ color: user.role === 'OWNER' ? '#7ab86f' : '#6b6f69' }}>
-                        {user.role}
+                        user.role === 'OWNER' ? 'bg-primary/20' : user.role === 'ATTENDANT' ? 'bg-stone/20' : 'bg-blue/20'
+                      }`} style={{ color: user.role === 'OWNER' ? '#7ab86f' : user.role === 'ATTENDANT' ? '#6b6f69' : '#1e7cc1' }}>
+                        {user.role === 'FIELD_AGENT' ? 'Field Agent' : user.role}
                       </span>
                       {user.warehouseName && (
                         <p className="text-xs mt-1" style={{ color: '#6b6f69' }}>{user.warehouseName}</p>
                       )}
                     </div>
+                    <button
+                      onClick={() => handleDeleteUser(user.id)}
+                      className="p-2 rounded-lg transition-all hover:bg-red-50"
+                      style={{ color: '#d32f2f' }}
+                      title="Delete user"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -281,12 +346,13 @@ export default function UsersPage() {
                 <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>Role</label>
                 <select
                   value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'OWNER' | 'ATTENDANT' })}
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value as 'OWNER' | 'ATTENDANT' | 'FIELD_AGENT' })}
                   className="w-full px-4 py-2.5 rounded-lg"
                   style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
                 >
                   <option value="OWNER">Owner</option>
                   <option value="ATTENDANT">Attendant</option>
+                  <option value="FIELD_AGENT">Field Agent</option>
                 </select>
               </div>
 

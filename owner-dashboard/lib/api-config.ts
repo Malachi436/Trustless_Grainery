@@ -6,7 +6,7 @@ export const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/auth/login`,
   
   // Owner Analytics (Multi-Owner Safe)
-  OWNER_WAREHOUSES: `${API_BASE_URL}/api/owner/warehouses`,
+  OWNER_WAREHOUSES: `${API_BASE_URL}/api/owner/analytics/warehouses`,
   ANALYTICS_SNAPSHOT: `${API_BASE_URL}/api/owner/analytics/snapshot`,
   ANALYTICS_TRANSACTIONS: `${API_BASE_URL}/api/owner/analytics/transactions`,
   ANALYTICS_TRANSACTION_DETAILS: (requestId: string) => `${API_BASE_URL}/api/owner/analytics/transactions/${requestId}`,

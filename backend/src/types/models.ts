@@ -1,4 +1,4 @@
-import { EventType, UserRole, WarehouseStatus, RequestStatus, CropType, BatchSourceType, BuyerType, PaymentMethod, PaymentStatus, ToolStatus } from './enums';
+import { EventType, UserRole, WarehouseStatus, RequestStatus, CropType, BatchSourceType, BuyerType, PaymentMethod, PaymentStatus, ToolStatus, RecoveryStatus, FieldAgentStatus, FarmerStatus, ServiceType } from './enums';
 
 /**
  * Core Event Structure - The Source of Truth
@@ -16,7 +16,7 @@ export interface Event {
 
 /**
  * Event Payloads - Type-safe per event type
- * Extended with v2 payloads
+ * Extended with v2 payloads + Outgrower v3 payloads
  */
 export type EventPayload =
   | GenesisInventoryPayload
@@ -27,7 +27,11 @@ export type EventPayload =
   | DispatchExecutedPayload
   | PaymentConfirmedPayload
   | ToolAssignedPayload
-  | ToolReturnedPayload;
+  | ToolReturnedPayload
+  | ServiceRecordedPayload
+  | HarvestCompletedPayload
+  | RecoveryInboundRecordedPayload
+  | AggregatedInboundRecordedPayload;
 
 export interface GenesisInventoryPayload {
   crop: CropType;
@@ -257,3 +261,116 @@ export interface BatchAllocation {
   bags_allocated: number;
   created_at: Date;
 }
+
+// ============================================
+// OUTGROWER / FIELD AGENT PAYLOADS (v3)
+// ============================================
+
+export interface ServiceRecordedPayload {
+  service_record_id: string; // UUID
+  farmer_id: string; // UUID
+  field_agent_id: string; // UUID
+  service_types: ServiceType[];
+  land_services?: Array<{
+    service_type: ServiceType;
+    date: string; // ISO date
+    notes?: string;
+  }>;
+  land_size_acres?: number;
+  fertilizer_type?: string;
+  fertilizer_quantity_kg?: number;
+  pesticide_type?: string;
+  pesticide_quantity_liters?: number;
+  expected_bags: number;
+}
+
+export interface HarvestCompletedPayload {
+  service_record_id: string; // UUID
+  farmer_id: string; // UUID
+  field_agent_id: string; // UUID
+  harvest_completed_by: string; // Field Agent user_id
+  notes?: string;
+}
+
+export interface RecoveryInboundRecordedPayload {
+  recovery_reference_id: string; // Recovery tracking id or service_record_id
+  service_record_id: string; // UUID
+  farmer_id: string; // UUID
+  field_agent_id: string; // UUID
+  crop: CropType;
+  bags_received: number;
+  batch_id: string; // UUID (batch created from this inbound)
+  recovery_status: RecoveryStatus;
+  notes?: string;
+}
+
+export interface AggregatedInboundRecordedPayload {
+  farmer_id: string; // UUID
+  field_agent_id: string; // UUID
+  crop: CropType;
+  bags: number;
+  batch_id: string; // UUID (batch created from this inbound)
+  notes?: string;
+}
+
+// ============================================
+// DATA MODELS
+// ============================================
+
+export interface FieldAgent {
+  id: string;
+  name: string;
+  phone: string;
+  community: string;
+  status: FieldAgentStatus;
+  created_at: Date;
+  created_by: string;
+}
+
+export interface Farmer {
+  id: string;
+  field_agent_id: string;
+  warehouse_id: string;
+  name: string;
+  phone?: string;
+  community?: string;
+  status: FarmerStatus;
+  created_at: Date;
+  created_by: string;
+}
+
+export interface ServiceRecord {
+  id: string;
+  farmer_id: string;
+  field_agent_id: string;
+  warehouse_id: string;
+  service_types: ServiceType[];
+  land_services?: Array<{
+    service_type: ServiceType;
+    date: string;
+    notes?: string;
+  }>;
+  land_size_acres?: number;
+  fertilizer_type?: string;
+  fertilizer_quantity_kg?: number;
+  pesticide_type?: string;
+  pesticide_quantity_liters?: number;
+  expected_bags: number;
+  recovery_status: RecoveryStatus;
+  harvest_completed_at?: Date;
+  created_at: Date;
+}
+
+export interface RecoveryTracking {
+  id: string;
+  service_record_id: string;
+  farmer_id: string;
+  warehouse_id: string;
+  expected_bags: number;
+  received_bags: number;
+  recovery_status: RecoveryStatus;
+  batch_id?: string;
+  created_at: Date;
+  completed_at?: Date;
+}
+

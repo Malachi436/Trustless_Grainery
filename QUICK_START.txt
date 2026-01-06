@@ -1,0 +1,60 @@
+TRUSTLESS GRAINERY - QUICK START GUIDE
+======================================
+
+ONE COMMAND TO START EVERYTHING:
+
+  .\START_ALL.ps1
+
+This will:
+  1. Start Backend API (port 4000)
+  2. Start Admin Dashboard (port 3001)
+  3. Start Owner Dashboard (port 3000)
+  4. Start Mobile Frontend (Expo)
+
+Then:
+  - Scan the QR code with Expo Go on your phone
+  - OR press 'i' for iOS simulator / 'a' for Android emulator
+
+All services will open in separate terminal windows.
+
+---
+
+LOGIN CREDENTIALS:
+
+Owner App:
+  Phone: 0201234567
+  PIN: 5678
+
+Admin Dashboard:
+  Phone: 0200000000
+  PIN: 0000
+
+---
+
+MOBILE CONNECTIVITY:
+
+Your IP is set to: 172.20.10.3:8081
+Backend will be reached at: http://172.20.10.3:4000
+
+If you need to change the IP:
+  Edit: frontend/src/lib/api-config.ts
+  Change: const STATIC_IP = '172.20.10.3';
+
+---
+
+TROUBLESHOOTING:
+
+If the app won't connect:
+  1. Check backend is running (Terminal 1)
+  2. Verify your machine IP: ipconfig (look for IPv4 Address)
+  3. Update STATIC_IP in api-config.ts
+  4. Restart mobile frontend (npm start)
+
+If ports are already in use:
+  - Backend: kill process on 4000
+  - Owner Dashboard: kill process on 3000
+  - Admin Dashboard: kill process on 3001
+
+---
+
+THAT'S IT! One command, one QR scan, you're done.

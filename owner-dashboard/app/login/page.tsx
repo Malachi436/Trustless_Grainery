@@ -14,6 +14,10 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
+    // Clear any stale tokens before logging in
+    localStorage.removeItem('ownerToken');
+    localStorage.removeItem('ownerData');
+
     try {
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',

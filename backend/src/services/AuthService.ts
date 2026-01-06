@@ -174,16 +174,16 @@ export class AuthService {
   }
 
   /**
-   * Assign attendant to warehouse
+   * Assign attendant or field agent to warehouse
    */
   async assignAttendantToWarehouse(
     attendantId: string,
     warehouseId: string
   ): Promise<void> {
-    // Verify user is attendant
+    // Verify user is attendant or field agent
     const user = await this.getUserById(attendantId);
-    if (!user || user.role !== UserRole.ATTENDANT) {
-      throw new Error('User is not an attendant');
+    if (!user || (user.role !== UserRole.ATTENDANT && user.role !== UserRole.FIELD_AGENT)) {
+      throw new Error('User is not an attendant or field agent');
     }
 
     await db.query(

@@ -1,0 +1,485 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                   TRUSTLESS GRAINERY - END-TO-END TESTING GUIDE                 ║
+║                Complete Workflow from Genesis to Stock Dispatch                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+This guide walks through the entire Trustless Grainery system testing workflow,
+including the new Field Agent (Outgrower) features.
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 0: INITIAL SETUP
+
+Before testing, ensure all services are running:
+
+1. **Start Backend** (Terminal 1):
+   ```
+   cd c:\Users\user\Desktop\Trustless_Grainery\backend
+   npm run migrate:field-agent    # Run migrations (includes outgrower tables)
+   npm start
+   ```
+   Expected: Backend listening on port 4000
+
+2. **Start Frontend (Expo)** (Terminal 2):
+   ```
+   cd c:\Users\user\Desktop\Trustless_Grainery\frontend
+   npm start
+   ```
+   Expected: Expo ready for connection
+
+3. **Start Owner Dashboard** (Terminal 3):
+   ```
+   cd c:\Users\user\Desktop\Trustless_Grainery\owner-dashboard
+   npm run dev
+   ```
+   Expected: Dashboard running on http://localhost:3000
+
+4. **Start Admin Dashboard** (Terminal 4):
+   ```
+   cd c:\Users\user\Desktop\Trustless_Grainery\admin-dashboard
+   npm run dev
+   ```
+   Expected: Admin dashboard running on http://localhost:3001
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 1: ADMIN SETUP (Admin Dashboard - http://localhost:3001)
+
+**Actor:** Platform Administrator
+
+**Step 1.1: Create Warehouse**
+1. Login with platform admin credentials
+2. Navigate to "Warehouses" section
+3. Click "Create New Warehouse"
+4. Fill form:
+   - Name: "Central Warehouse 1"
+   - Location: "District A"
+   - Description: "Main warehouse for testing"
+5. Click "Create"
+Expected: Warehouse created with status "PENDING_GENESIS"
+
+**Step 1.2: Create Owner User**
+1. Navigate to "Users" section
+2. Click "Create New User"
+3. Fill form:
+   - Phone: "0201234567" (owner 1)
+   - PIN: "5678"
+   - Role: "OWNER"
+   - Warehouse: "Central Warehouse 1"
+4. Click "Create"
+Expected: Owner user created. Note the phone number for login.
+
+**Step 1.3: Create Attendant User**
+1. Click "Create New User" again
+2. Fill form:
+   - Phone: "0241234567" (attendant 1)
+   - PIN: "1234"
+   - Role: "ATTENDANT"
+   - Warehouse: "Central Warehouse 1"
+3. Click "Create"
+Expected: Attendant user created
+
+**Step 1.4: Create Field Agent User** (NEW - v3 feature)
+1. Click "Create New User"
+2. Fill form:
+   - Phone: "0260000001" (field agent 1)
+   - PIN: "9999"
+   - Role: "FIELD_AGENT"
+   - Warehouse: "Central Warehouse 1"
+3. Click "Create"
+Expected: Field Agent user created
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 2: GENESIS INITIALIZATION (Frontend Mobile App)
+
+**Actor:** Owner
+**Device:** Expo app
+
+**Step 2.1: Owner Login**
+1. Open Expo app → Login screen
+2. Enter:
+   - Phone: 0201234567
+   - PIN: 5678
+   - Role: OWNER
+3. Tap "Login"
+Expected: Redirected to Genesis Confirmation screen (warehouse inactive)
+
+**Step 2.2: Confirm Genesis**
+1. Screen shows "Warehouse Activation - One-time Setup"
+2. Review warehouse details
+3. Tap "Confirm Genesis"
+Expected: Warehouse activated. Owner dashboard loads with:
+   - Total Stock: 0 bags
+   - Pending Approvals: 0
+   - Active Attendants: 0
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 3: WAREHOUSE OPERATIONS SETUP
+
+**Step 3.1: Owner Assigns Attendant** (via Owner Dashboard or API call)
+Attendant now appears in owner's view
+
+**Step 3.2: Owner Creates Batch (Optional - for testing warehouse stock)**
+Alternative: Let attendant log inbound directly
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 4: INITIAL STOCK INBOUND (Attendant - Warehouse Stock)
+
+**Actor:** Attendant
+**Device:** Expo app
+
+**Step 4.1: Attendant Login**
+1. Open Expo app → Login screen
+2. Enter:
+   - Phone: 0241234567
+   - PIN: 1234
+   - Role: ATTENDANT
+3. Tap "Login"
+Expected: Attendant home screen with:
+   - Total Stock: 0 bags
+   - Pending Requests: 0
+   - Quick Actions menu
+
+**Step 4.2: Log Warehouse Inbound**
+1. Tap "Log Inbound Stock" button
+2. Select inbound source: **"Warehouse"** (NOT outgrower)
+3. Fill form:
+   - Crop Type: "MAIZE"
+   - Source Location: "Own Farm A"
+   - Number of Bags: 100
+4. Tap "Take Photo" and take a photo (or use existing image)
+5. Review confirmation dialog
+6. Tap "Confirm"
+Expected: 
+   - Stock entry logged
+   - New batch created (source: WAREHOUSE)
+   - Attendant home updates: Total Stock now shows 100 bags
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 5: FIELD AGENT OPERATIONS (NEW - v3 Feature)
+
+**Actor:** Field Agent
+**Device:** Expo app
+
+**Step 5.1: Field Agent Login**
+1. Open Expo app → Login screen
+2. Enter:
+   - Phone: 0260000001
+   - PIN: 9999
+   - Role: FIELD_AGENT
+3. Tap "Login"
+Expected: Field Agent home screen with:
+   - Farmers: 0
+   - Expected Bags: 0
+   - Quick action buttons
+
+**Step 5.2: Register Farmer**
+1. Tap "My Farmers" or "Add New Farmer"
+2. Tap "+ Add Farmer"
+3. Fill modal:
+   - Farmer Name: "Farmer John"
+   - Phone: 0701234567 (optional)
+   - Community: "Community A" (optional)
+4. Tap "Create Farmer"
+Expected: Farmer added. Farmers list now shows 1 farmer
+
+**Step 5.3: Record Service for Farmer**
+1. Tap "Record Services"
+2. Select Farmer: "Farmer John"
+3. Select Services: Check "PLOWING" + "PLANTING"
+4. Fill:
+   - Expected Bags: 50
+   - Land Size: 2.5 acres
+   - Fertilizer Type: "NPK"
+   - Fertilizer Quantity: 100 kg
+5. Tap "Record Service"
+Expected: 
+   - SERVICE_RECORDED event created
+   - Service appears in recovery tracking system
+   - Expected Inventory updated
+   - Field Agent home now shows "50" expected bags
+
+**Step 5.4: Mark Harvest Complete**
+1. Tap "Mark Harvest Complete"
+2. Select Farmer: "Farmer John"
+3. Select Service: (shows pending service)
+4. Tap "✓ Mark Complete"
+Expected: 
+   - HARVEST_COMPLETED event created
+   - Service status changes to HARVESTED
+   - Service ready for recovery inbound
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 6: OUTGROWER RECOVERY INBOUND (NEW - v3 Feature)
+
+**Actor:** Attendant (accepting recovery from field agent's farmer)
+**Device:** Expo app
+
+**Step 6.1: Log Recovery Inbound**
+1. Switch to Attendant app (or re-login as attendant)
+2. Tap "Log Inbound Stock"
+3. Select Inbound Source: **"Outgrower - Recovery"** (NEW option)
+4. Fill form:
+   - Service Record ID: [Copy from field agent or use known ID]
+   - Crop Type: "MAIZE"
+   - Number of Bags: 50 (matching expected)
+5. Tap "Take Photo"
+6. Review confirmation
+7. Tap "Confirm"
+Expected: 
+   - RECOVERY_INBOUND_RECORDED event created
+   - Batch created (source: OUTGROWER, subtype: RECOVERY)
+   - Recovery tracking updated: received_bags = 50
+   - Recovery status: COMPLETED (if all expected bags received)
+   - Stock warehouse updated with +50 bags
+
+**Step 6.2: (Optional) Partial Recovery**
+1. Later, another farmer repays partial debt
+2. Log Inbound Stock → "Outgrower - Recovery"
+3. Enter same Service Record ID but fewer bags (e.g., 25)
+4. Confirm
+Expected:
+   - Recovery status: PARTIAL (if total < expected)
+   - Stock increased by 25 more bags
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 7: OUTGROWER AGGREGATED INBOUND (NEW - v3 Feature)
+
+**Actor:** Attendant (accepting aggregated sale from field agent's farmer)
+**Device:** Expo app
+
+**Step 7.1: Log Aggregated Inbound**
+1. Attendant app → "Log Inbound Stock"
+2. Select Inbound Source: **"Outgrower - Aggregated"** (NEW option)
+3. Fill form:
+   - Farmer ID: [Farmer's unique ID]
+   - Crop Type: "MAIZE"
+   - Number of Bags: 75
+4. Tap "Take Photo"
+5. Review and confirm
+Expected: 
+   - AGGREGATED_INBOUND_RECORDED event created
+   - Batch created (source: OUTGROWER, subtype: AGGREGATED)
+   - NO impact on recovery tracking (independent flow)
+   - Stock warehouse updated with +75 bags
+   - Total warehouse stock now includes aggregated volume
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 8: OWNER VISIBILITY - EXPECTED INVENTORY (NEW - v3 Feature)
+
+**Actor:** Owner
+**Device:** Web browser (Owner Dashboard - http://localhost:3000)
+
+**Step 8.1: View Expected Inventory Dashboard**
+1. Navigate to "Expected Inventory" tab (NEW in Phase 3)
+2. Page displays:
+   - Summary: Total Expected, Total Received, Outstanding, Completed
+   - Filterable table with farmers and services
+   - Progress bars showing recovery status
+Expected: Shows all farmer services with recovery tracking:
+   - "Farmer John": 50 expected, 50 received, 0 outstanding, COMPLETED
+
+**Step 8.2: View Recovery Analytics**
+1. Navigate to "Recovery Analytics" tab (NEW in Phase 3)
+2. Page displays:
+   - Total Recovery Records
+   - Recovery Rate (percentage)
+   - Status Distribution (Completed, Partial, Harvested, Pending)
+   - Recovery Flow visualization
+Expected: 
+   - Shows status breakdown
+   - Recovery rate reflects actual vs expected
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 9: DISPATCH REQUEST WORKFLOW
+
+**Actor:** Owner (creates request), Attendant (executes)
+**Device:** Expo app
+
+**Step 9.1: Owner Approves Request**
+1. Switch to Owner dashboard (Expo app)
+2. Navigate to "Approvals"
+3. Create new request (or view pending)
+4. Review request details
+5. Tap "Approve" to authorize dispatch
+Expected: Request status: APPROVED
+
+**Step 9.2: Attendant Executes Dispatch**
+1. Switch to Attendant app
+2. Navigate to "Execute Dispatch"
+3. Select approved request
+4. Fill dispatch details:
+   - Actual Bags Dispatched: (e.g., 100)
+   - Destination: "Buyer A"
+5. Tap "Take Photo" (proof of dispatch)
+6. Confirm execution
+Expected: 
+   - Request status: EXECUTED
+   - Stock reduced from warehouse
+   - DISPATCH_EXECUTED event created
+   - Batch recorded with DISPATCH source
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 10: AUDIT & ANALYTICS
+
+**Actor:** Owner
+**Device:** Web browser (Owner Dashboard)
+
+**Step 10.1: View Audit Timeline**
+1. Navigate to "Audit Timeline" section
+2. Chronological view of all events:
+   - GENESIS_CONFIRMED
+   - INBOUND_RECORDED (warehouse)
+   - SERVICE_RECORDED (field agent)
+   - HARVEST_COMPLETED (field agent)
+   - RECOVERY_INBOUND_RECORDED (attendant)
+   - AGGREGATED_INBOUND_RECORDED (attendant)
+   - DISPATCH_EXECUTED (attendant)
+Expected: Complete immutable audit trail visible
+
+**Step 10.2: View Stock Analytics**
+1. Navigate to "Stock" dashboard
+2. View stock by source:
+   - Own Farm: 100 bags
+   - Outgrower Recovery: 50 bags
+   - Outgrower Aggregated: 75 bags
+   - Total: 225 bags
+3. Transactions tab shows all movements
+Expected: Stock accounting matches events
+
+**Step 10.3: View Expected vs. Actual**
+1. Navigate to "Expected Inventory"
+2. Compare:
+   - Expected: 50 (from service)
+   - Received: 50 (recovery completed)
+   - Status: COMPLETED ✓
+Expected: Outgrower services tracked independently from warehouse stock
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 11: PRICING & FINANCIAL WORKFLOW (Optional Advanced Test)
+
+**Step 11.1: Owner Sets Tool Pricing**
+1. Owner app → Navigate to "Tools" section
+2. Add/assign tools to attendants
+3. Set daily/weekly rental prices
+4. Attendants can then request tools
+
+**Step 11.2: Owner Approves Tool Requests**
+1. View pending tool requests
+2. Approve and set due dates
+3. Track rental expenses
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### PHASE 12: VERIFICATION CHECKLIST
+
+Run through this checklist to confirm full system functionality:
+
+□ Admin can create warehouse + users (4 users: owner, attendant, field agent, 2nd field agent)
+□ Owner can complete genesis confirmation
+□ Attendant can log warehouse inbound stock
+□ Field agent can register farmers
+□ Field agent can record services with inputs (fertilizer, pesticide, land size)
+□ Field agent can mark harvest complete
+□ Attendant can log recovery inbound (linked to service)
+□ Attendant can log aggregated inbound (independent)
+□ Expected inventory projection shows pending services
+□ Owner dashboard shows recovery analytics
+□ Stock is properly tracked: warehouse + recovery + aggregated
+□ Audit timeline shows all 7+ event types
+□ Recovery status flows: PENDING → HARVESTED → PARTIAL → COMPLETED
+□ Dispatch workflow works (approve → execute)
+□ All data is immutable and event-sourced
+□ Field agent app shows proper UI (no warehouse stock)
+□ Owner dashboard has 2 new tabs (Expected Inventory, Recovery Analytics)
+□ Attendant inbound has 3 source options (Warehouse, Recovery, Aggregated)
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### TROUBLESHOOTING GUIDE
+
+**Problem: "Network request failed" when logging in**
+Solution: 
+1. Verify backend is running on port 4000
+2. Check API_BASE_URL in frontend config (should be 172.20.10.3 or localhost:4000)
+3. Ensure phone format is correct (0201234567 without spaces)
+
+**Problem: "Service record not found" when recording recovery**
+Solution:
+1. Verify service record ID is correct (copy from field agent screen)
+2. Ensure field agent and attendant are in same warehouse
+3. Check that farmer belongs to that field agent
+
+**Problem: Expected inventory shows 0 records**
+Solution:
+1. Verify at least one SERVICE_RECORDED event exists
+2. Check owner dashboard → Analytics Snapshot endpoint
+3. Confirm field agent recorded service successfully
+
+**Problem: Stock not updating after inbound**
+Solution:
+1. Verify INBOUND_RECORDED event was created
+2. Check batch was created with correct source_type
+3. Verify warehouse was specified in request
+
+**Problem: Recovery status not showing "COMPLETED"**
+Solution:
+1. Verify bags_received equals expected_bags
+2. Ensure RECOVERY_INBOUND_RECORDED event exists
+3. Check recovery_tracking record in database
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### KEY METRICS TO TRACK
+
+After full test completion, verify these metrics:
+
+Event Types Created:
+✓ GENESIS_CONFIRMED
+✓ INBOUND_RECORDED (warehouse)
+✓ SERVICE_RECORDED (field agent)
+✓ HARVEST_COMPLETED (field agent)
+✓ RECOVERY_INBOUND_RECORDED (attendant)
+✓ AGGREGATED_INBOUND_RECORDED (attendant)
+✓ DISPATCH_EXECUTED (dispatch)
+
+Stock Movements:
+✓ Warehouse → +100 (initial inbound)
+✓ Recovery → +50 (recovery inbound)
+✓ Aggregated → +75 (aggregated inbound)
+✓ Dispatch → -100 (dispatch execution)
+✓ Final Stock: 125 bags
+
+Recovery Tracking:
+✓ Expected: 50 bags
+✓ Received: 50 bags
+✓ Status: COMPLETED
+✓ Outstanding: 0 bags
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+### NEXT STEPS AFTER TESTING
+
+1. **Database Backup**: Export schema and events for documentation
+2. **Performance Testing**: Test with 100+ farmers, 1000+ events
+3. **Offline Sync Testing**: Verify Expo app works offline
+4. **Multi-warehouse Testing**: Test with 3+ warehouses
+5. **Production Deployment**: Deploy to staging environment
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+For issues or questions, refer to the complete architecture documentation or
+reach out to the development team.
+
+Last Updated: January 6, 2026
+Trustless Grainery v3 - Field Agent & Outgrower Edition

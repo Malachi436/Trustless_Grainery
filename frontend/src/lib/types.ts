@@ -1,6 +1,6 @@
 // Core types for Trustless Granary warehouse inventory system
 
-export type UserRole = 'attendant' | 'owner';
+export type UserRole = 'attendant' | 'owner' | 'field_agent';
 
 export type WarehouseStatus = 'setup_in_progress' | 'pending_genesis' | 'active';
 

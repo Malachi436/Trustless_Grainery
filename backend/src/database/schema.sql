@@ -5,7 +5,7 @@
 -- ============================================
 
 -- Create ENUM types
-CREATE TYPE user_role AS ENUM ('PLATFORM_ADMIN', 'OWNER', 'ATTENDANT');
+CREATE TYPE user_role AS ENUM ('PLATFORM_ADMIN', 'OWNER', 'ATTENDANT', 'FIELD_AGENT');
 CREATE TYPE warehouse_status AS ENUM ('SETUP', 'GENESIS_PENDING', 'ACTIVE', 'SUSPENDED');
 CREATE TYPE event_type AS ENUM (
   'GENESIS_INVENTORY_RECORDED',

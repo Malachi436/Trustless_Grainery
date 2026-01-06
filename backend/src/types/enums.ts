@@ -1,6 +1,6 @@
 /**
  * Event Types - Extended Event System
- * Core 6 events (MVP) + Extended events for batch/payment/tools
+ * Core 6 events (MVP) + Extended events for batch/payment/tools + Outgrower
  * All events are immutable and append-only.
  */
 export enum EventType {
@@ -18,6 +18,12 @@ export enum EventType {
   PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
   TOOL_ASSIGNED = 'TOOL_ASSIGNED',
   TOOL_RETURNED = 'TOOL_RETURNED',
+  
+  // Outgrower events (v3 features)
+  SERVICE_RECORDED = 'SERVICE_RECORDED',
+  HARVEST_COMPLETED = 'HARVEST_COMPLETED',
+  RECOVERY_INBOUND_RECORDED = 'RECOVERY_INBOUND_RECORDED',
+  AGGREGATED_INBOUND_RECORDED = 'AGGREGATED_INBOUND_RECORDED',
 }
 
 /**
@@ -27,6 +33,7 @@ export enum UserRole {
   PLATFORM_ADMIN = 'PLATFORM_ADMIN',
   OWNER = 'OWNER',
   ATTENDANT = 'ATTENDANT',
+  FIELD_AGENT = 'FIELD_AGENT',
 }
 
 /**
@@ -67,6 +74,7 @@ export enum BatchSourceType {
   OWN_FARM = 'OWN_FARM',
   SME = 'SME',
   SMALL_FARMER = 'SMALL_FARMER',
+  OUTGROWER = 'OUTGROWER',  // v3: Recovery or Aggregated inbound
 }
 
 /**
@@ -105,4 +113,48 @@ export enum ToolStatus {
   AVAILABLE = 'AVAILABLE',
   ASSIGNED = 'ASSIGNED',
   RETIRED = 'RETIRED',
+}
+
+/**
+ * Recovery Status - Outgrower recovery workflow
+ */
+export enum RecoveryStatus {
+  PENDING = 'PENDING',      // Service recorded, harvest not completed
+  HARVESTED = 'HARVESTED',  // Harvest completed, awaiting stock
+  PARTIAL = 'PARTIAL',      // Some bags received, not complete
+  COMPLETED = 'COMPLETED',  // Full recovery received
+}
+
+/**
+ * Field Agent Status
+ */
+export enum FieldAgentStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+}
+
+/**
+ * Farmer Status
+ */
+export enum FarmerStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  SUSPENDED = 'SUSPENDED',
+}
+
+/**
+ * Service Type - Land services provided to farmers
+ */
+export enum ServiceType {
+  LAND_CLEARING = 'LAND_CLEARING',
+  PLOWING = 'PLOWING',
+  PLANTING = 'PLANTING',
+  WEEDING = 'WEEDING',
+  FERTILIZING = 'FERTILIZING',
+  PEST_CONTROL = 'PEST_CONTROL',
+  HARVESTING = 'HARVESTING',
+  THRESHING = 'THRESHING',
+  DRYING = 'DRYING',
+  OTHER = 'OTHER',
 }

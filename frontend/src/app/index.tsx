@@ -25,6 +25,8 @@ export default function Index() {
       router.replace('/owner');
     } else if (userRole === 'attendant') {
       router.replace('/attendant');
+    } else if (userRole === 'field_agent') {
+      router.replace('/field-agent');
     } else {
       router.replace('/login');
     }

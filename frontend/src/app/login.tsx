@@ -18,7 +18,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import type { User, Warehouse } from '@/lib/types';
 import { API_ENDPOINTS } from '@/lib/api-config';
 
-type RoleTab = 'attendant' | 'owner';
+type RoleTab = 'attendant' | 'owner' | 'field_agent';
 
 export default function LoginScreen() {
   const [selectedRole, setSelectedRole] = useState<RoleTab>('attendant');
@@ -36,7 +36,7 @@ export default function LoginScreen() {
 
     try {
       console.log('Attempting login to:', API_ENDPOINTS.LOGIN);
-      console.log('Request body:', { phone, pin: '****', role: selectedRole === 'owner' ? 'OWNER' : 'ATTENDANT' });
+      console.log('Request body:', { phone, pin: '****', role: selectedRole === 'owner' ? 'OWNER' : selectedRole === 'field_agent' ? 'FIELD_AGENT' : 'ATTENDANT' });
       
       // Call real backend login API with timeout
       const controller = new AbortController();
@@ -50,7 +50,7 @@ export default function LoginScreen() {
         body: JSON.stringify({
           phone,
           pin,
-          role: selectedRole === 'owner' ? 'OWNER' : 'ATTENDANT',
+          role: selectedRole === 'owner' ? 'OWNER' : selectedRole === 'field_agent' ? 'FIELD_AGENT' : 'ATTENDANT',
         }),
         signal: controller.signal,
       });
@@ -76,15 +76,22 @@ export default function LoginScreen() {
         router.replace('/owner');
       } else if (user.role === 'ATTENDANT') {
         router.replace('/attendant');
+      } else if (user.role === 'FIELD_AGENT') {
+        router.replace('/field-agent');
       }
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.name === 'AbortError') {
         setError('Request timeout. Please check your network connection.');
       } else if (err.message.includes('Network request failed')) {
-        setError('Cannot connect to server. Make sure you\'re on the same WiFi network and the backend is running.');
+        // Network error - unable to reach server
+        setError('Cannot connect to server. Make sure you\'re on the same network and the backend is running at http://172.20.10.3:4000');
+      } else if (err.message.includes('Invalid credentials')) {
+        // Clear error from backend - wrong phone or PIN
+        setError('Invalid phone number or PIN. Please check your credentials.');
       } else {
-        setError(err.message || 'Login failed. Please check your credentials.');
+        // Other backend error
+        setError(err.message || 'Login failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -138,7 +145,29 @@ export default function LoginScreen() {
               styles.tabText,
               selectedRole === 'attendant' && styles.tabTextActive,
             ]}>
-              Warehouse Attendant
+              Attendant
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedRole === 'field_agent' && styles.tabActive,
+            ]}
+            onPress={() => setSelectedRole('field_agent')}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.tabIconContainer,
+              selectedRole === 'field_agent' && styles.tabIconActive,
+            ]}>
+              <Text style={styles.tabIcon}>🌾</Text>
+            </View>
+            <Text style={[
+              styles.tabText,
+              selectedRole === 'field_agent' && styles.tabTextActive,
+            ]}>
+              Field Agent
             </Text>
           </TouchableOpacity>
 
@@ -236,8 +265,20 @@ export default function LoginScreen() {
         {/* Test Credentials Hint */}
         <View style={styles.testCredsContainer}>
           <Text style={styles.testCredsTitle}>Test Accounts:</Text>
-          <Text style={styles.testCreds}>Attendant: 0241234567 / 1234</Text>
-          <Text style={styles.testCreds}>Owner: 0201234567 / 5678</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+            <View>
+              <Text style={styles.testCredsLabel}>Attendant</Text>
+              <Text style={styles.testCreds}>0241234567 / 1234</Text>
+            </View>
+            <View>
+              <Text style={styles.testCredsLabel}>Field Agent</Text>
+              <Text style={styles.testCreds}>0260006666 / 3333</Text>
+            </View>
+            <View>
+              <Text style={styles.testCredsLabel}>Owner</Text>
+              <Text style={styles.testCreds}>0201234567 / 5678</Text>
+            </View>
+          </View>
         </View>
       </View>
           </ScrollView>
@@ -305,7 +346,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
     borderRadius: 16,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
@@ -330,7 +371,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     color: '#666666',
     textAlign: 'center',
@@ -400,11 +441,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   testCreds: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#a8a29e',
     textAlign: 'center',
     marginBottom: 2,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  testCredsLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#78716c',
+    textAlign: 'center',
+    marginBottom: 2,
   },
   errorContainer: {
     flexDirection: 'row',

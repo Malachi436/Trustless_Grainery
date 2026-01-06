@@ -9,6 +9,7 @@ export const API_ENDPOINTS = {
   ADMIN_WAREHOUSES: `${API_BASE_URL}/api/admin/warehouses`,
   ADMIN_USERS: `${API_BASE_URL}/api/admin/users`,
   ADMIN_GENESIS: (warehouseId: string) => `${API_BASE_URL}/api/admin/warehouses/${warehouseId}/genesis`,
+  ADMIN_DELETE_WAREHOUSE: (warehouseId: string) => `${API_BASE_URL}/api/admin/warehouses/${warehouseId}`,
   ADMIN_SUSPEND_WAREHOUSE: (warehouseId: string) => `${API_BASE_URL}/api/admin/warehouses/${warehouseId}/suspend`,
   ADMIN_AUDIT: `${API_BASE_URL}/api/admin/audit`,
 };

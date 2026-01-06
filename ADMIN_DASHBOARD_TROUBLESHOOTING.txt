@@ -1,0 +1,203 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║            ADMIN DASHBOARD TROUBLESHOOTING - FETCH SNAPSHOT ERROR          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+ERROR: "Failed to fetch snapshot" when accessing admin dashboard
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK DIAGNOSIS STEPS:
+
+1. VERIFY BACKEND IS RUNNING
+   □ Check Terminal 1 shows: "Server listening on port 4000"
+   □ Try accessing directly: http://localhost:4000/api/health
+   □ Should return: {"success":true,"message":"Trustless Granary API is running"}
+
+2. VERIFY TOKEN IS PRESENT
+   □ Open browser: F12 → Application → LocalStorage
+   □ Look for "adminToken" key
+   □ Should contain a JWT token (long string starting with "eyJ...")
+   □ If missing → Login failed, not a fetch issue
+
+3. CHECK NETWORK REQUEST
+   □ Open: F12 → Network tab
+   □ Refresh admin dashboard page
+   □ Look for request to: GET http://localhost:4000/api/admin/warehouses
+   □ Check response:
+     - Status 200 = backend responding
+     - Status 401 = token invalid/expired
+     - Status 404 = endpoint not found
+     - Status 500 = backend error
+     - No request at all = network blocked
+
+4. CHECK CONSOLE ERRORS
+   □ Open: F12 → Console tab
+   □ Look for JavaScript errors
+   □ Common issues:
+     - "Failed to fetch" = network error or CORS
+     - "Unauthorized" = token invalid
+     - "Cannot read property" = data format mismatch
+
+═══════════════════════════════════════════════════════════════════════════════
+
+ROOT CAUSE ANALYSIS:
+
+SCENARIO 1: Backend Not Running
+   Symptom: No network request visible in Network tab
+   Solution:
+   □ Kill any processes on port 4000: netstat -ano | findstr :4000
+   □ Start backend fresh:
+     cd backend
+     npm start
+   □ Wait for "Server listening on port 4000" message
+   □ Try admin dashboard again
+
+SCENARIO 2: Token Expired or Invalid
+   Symptom: Network request returns 401 Unauthorized
+   Solution:
+   □ Clear all admin localStorage:
+     - F12 → Application → LocalStorage → Clear All
+   □ Logout completely
+   □ Login again to admin dashboard
+   □ Ensure login succeeds before proceeding
+
+SCENARIO 3: CORS or Network Error
+   Symptom: "Failed to fetch" in console, no response status visible
+   Solution:
+   □ Check firewall settings (Windows Defender, antivirus)
+   □ Try accessing backend directly: http://localhost:4000/api/health
+   □ If direct access fails:
+     - Disable Windows Defender temporarily (for testing only)
+     - Or try accessing from different browser
+   □ Check if API_BASE_URL is correct:
+     - Admin dashboard config: http://localhost:4000
+     - Verify in Network tab: request shows localhost:4000 in URL
+
+SCENARIO 4: Endpoint Not Implemented
+   Symptom: Network request returns 404 Not Found
+   Solution:
+   □ Verify adminRoutes.ts has GET /warehouses endpoint
+   □ Check: backend/src/routes/adminRoutes.ts line 25
+   □ Should show: router.get('/warehouses', adminController.getAllWarehouses);
+   □ If missing, restart backend after checking code
+
+SCENARIO 5: Admin Not Created Yet
+   Symptom: Login succeeds but no warehouses/users appear
+   Solution:
+   □ This is expected behavior
+   □ No error - just no data yet
+   □ Proceed to create warehouse (Step 1.1 in E2E guide)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP-BY-STEP RECOVERY:
+
+1. Complete Backend Restart
+   Terminal 1 (Backend):
+   $ cd c:\Users\user\Desktop\Trustless_Grainery\backend
+   $ npm start
+   Wait for: "Server listening on port 4000"
+
+2. Clear Admin Dashboard Cache
+   □ Close admin dashboard tab
+   □ Open DevTools: F12
+   □ Application → LocalStorage → Select localhost:3001
+   □ Delete: adminToken, adminUser
+   □ Close DevTools
+
+3. Full Page Reload
+   □ Navigate to http://localhost:3001
+   □ CTRL+SHIFT+R (hard refresh, clears cache)
+   □ Should redirect to login
+
+4. Re-login
+   □ Phone: 0201234567 (admin default)
+   □ PIN: 5678
+   □ Role: ADMIN (if available)
+   □ Click Login
+   □ Check for errors in console (F12)
+
+5. Verify Dashboard Loads
+   □ Should see "Dashboard" page
+   □ May show "0 Warehouses" (expected if first run)
+   □ No error message = success
+
+═══════════════════════════════════════════════════════════════════════════════
+
+ADVANCED DEBUGGING:
+
+1. Test Backend Directly (PowerShell)
+   ```
+   $headers = @{ "Authorization" = "Bearer YOUR_TOKEN_HERE" }
+   $response = Invoke-WebRequest -Uri "http://localhost:4000/api/admin/warehouses" `
+       -Headers $headers -Method Get
+   $response.Content | ConvertFrom-Json
+   ```
+
+2. Enable Debug Logging
+   Terminal 1 (Backend):
+   $ set DEBUG=*
+   $ npm start
+   (Shows all API calls)
+
+3. Check Database Connection
+   Backend console should show:
+   "Database connected successfully"
+   If missing → Database not initialized
+
+4. Verify Admin User Exists
+   Database query:
+   SELECT * FROM users WHERE role = 'PLATFORM_ADMIN';
+   Should return at least one row
+
+═══════════════════════════════════════════════════════════════════════════════
+
+QUICK FIXES (Try in Order):
+
+Fix #1: Hard Refresh
+  CTRL+SHIFT+R on admin dashboard
+
+Fix #2: Clear LocalStorage
+  F12 → Application → LocalStorage → Clear All
+
+Fix #3: Restart Backend
+  Terminal 1: CTRL+C, then npm start
+
+Fix #4: Check API_BASE_URL
+  Admin dashboard config should have:
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+Fix #5: Test with curl
+  curl -H "Authorization: Bearer TOKEN" http://localhost:4000/api/admin/warehouses
+
+═══════════════════════════════════════════════════════════════════════════════
+
+IF STILL NOT WORKING:
+
+1. Gather Information:
+   - Full error message (screenshot or text)
+   - Browser console errors (F12 → Console)
+   - Network response (F12 → Network → Click failed request → Response tab)
+   - Backend logs (what does Terminal 1 show when you access dashboard?)
+
+2. Check These Files:
+   - backend/src/routes/adminRoutes.ts (line 25 should have /warehouses)
+   - backend/src/controllers/adminController.ts (getAllWarehouses function)
+   - admin-dashboard/lib/api-config.ts (API_ENDPOINTS should have ADMIN_WAREHOUSES)
+
+3. Verify Environment:
+   - Node version: node --version (should be v16+)
+   - npm version: npm --version
+   - Port 4000 available: netstat -ano | findstr :4000 (should be empty)
+   - Port 3001 available: netstat -ano | findstr :3001 (should be empty)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+STILL STUCK?
+
+Provide the following information:
+1. Exact error message (full text or screenshot)
+2. Browser console output (F12 → Console)
+3. Network tab response (F12 → Network → Failed request)
+4. Backend terminal output (what shows when you access dashboard?)
+5. Steps taken so far to troubleshoot

@@ -3,11 +3,16 @@ import { Platform } from 'react-native';
 
 /**
  * Get the API base URL based on the current environment
+ * - Static IP: Use 172.20.10.3 for your setup (configure here if needed)
  * - On physical device: Uses the local network IP from Expo manifest
  * - On web: Uses localhost
  * - On Android emulator: Uses 10.0.2.2 (special Android emulator localhost)
  */
 function getApiUrl(): string {
+  // STATIC IP OVERRIDE: Change this to your machine's IP if needed
+  // Leave empty to auto-detect from Expo debugger host
+  const STATIC_IP = '172.20.10.3';
+  
   // Get debugger host from Expo Constants
   const { manifest } = Constants;
   // @ts-ignore - expoConfig can have debuggerHost
@@ -25,12 +30,19 @@ function getApiUrl(): string {
     return 'http://localhost:4000';
   }
 
+  // If static IP is configured, use it
+  if (STATIC_IP) {
+    const apiUrl = `http://${STATIC_IP}:4000`;
+    console.log('Using static API URL:', apiUrl);
+    return apiUrl;
+  }
+
   // For physical devices (iOS/Android), extract IP from debuggerHost
   if (debuggerHost) {
     // Extract IP from debuggerHost (format: "192.168.1.100:8081" or "192.168.1.100:8082")
     const host = debuggerHost.split(':').shift();
     const apiUrl = `http://${host}:4000`;
-    console.log('Using API URL:', apiUrl);
+    console.log('Using auto-detected API URL:', apiUrl);
     return apiUrl;
   }
 
@@ -75,6 +87,14 @@ export const API_ENDPOINTS = {
   // Admin
   ADMIN_CREATE_WAREHOUSE: `${API_BASE_URL}/api/admin/warehouses`,
   ADMIN_CREATE_USER: `${API_BASE_URL}/api/admin/users`,
+  
+  // Field Agent
+  FIELD_AGENT_FARMERS: `${API_BASE_URL}/api/field-agent/farmers`,
+  FIELD_AGENT_EXPECTED_INVENTORY: `${API_BASE_URL}/api/field-agent/expected-inventory`,
+  FIELD_AGENT_RECORD_SERVICE: (farmerId: string) => `${API_BASE_URL}/api/field-agent/farmers/${farmerId}/services`,
+  FIELD_AGENT_HARVEST_COMPLETE: (farmerId: string) => `${API_BASE_URL}/api/field-agent/farmers/${farmerId}/harvest-complete`,
+  FIELD_AGENT_RECOVERY_INBOUND: `${API_BASE_URL}/api/field-agent/recovery-inbound`,
+  FIELD_AGENT_AGGREGATED_INBOUND: `${API_BASE_URL}/api/field-agent/aggregated-inbound`,
 };
 
 // Helper function to log the current API URL (useful for debugging)

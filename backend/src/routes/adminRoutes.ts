@@ -31,6 +31,12 @@ router.get('/warehouses', adminController.getAllWarehouses);
 router.get('/warehouses/:id', adminController.getWarehouseDetails);
 
 /**
+ * DELETE /admin/warehouses/:id
+ * Delete a warehouse
+ */
+router.delete('/warehouses/:id', adminController.deleteWarehouse);
+
+/**
  * POST /admin/users
  * Create new user (Owner or Attendant)
  */
@@ -41,6 +47,12 @@ router.post('/users', adminController.createUserValidation, adminController.crea
  * Get all users (optional query param: ?role=OWNER)
  */
 router.get('/users', adminController.getAllUsers);
+
+/**
+ * DELETE /admin/users/:userId
+ * Delete a user
+ */
+router.delete('/users/:userId', adminController.deleteUser);
 
 /**
  * POST /admin/warehouses/:warehouseId/genesis

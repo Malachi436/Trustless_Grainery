@@ -16,6 +16,10 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
+    // Clear any stale tokens before logging in
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+
     try {
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
