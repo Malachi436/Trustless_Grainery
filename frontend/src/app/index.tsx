@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator, Text, Image } from 'react-native';
 import { useIsAuthenticated, useUserRole, useIsAuthLoading } from '@/lib/auth-store';
 
 export default function Index() {
@@ -33,9 +33,14 @@ export default function Index() {
   }, [isMounted, isLoading, isAuthenticated, userRole, router]);
 
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5' }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
+      <Image 
+        source={require('../../assets/logo.png')} 
+        style={{ width: 120, height: 120, marginBottom: 20 }}
+        resizeMode="contain"
+      />
       <ActivityIndicator size="large" color="#3d9448" />
-      <Text style={{ marginTop: 16, color: '#666' }}>Loading...</Text>
+      <Text style={{ marginTop: 16, color: '#666', fontSize: 16 }}>Loading...</Text>
     </View>
   );
 }

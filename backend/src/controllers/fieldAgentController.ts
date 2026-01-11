@@ -29,6 +29,7 @@ export const recordServiceValidation = [
   param('farmerId').isUUID().withMessage('Invalid farmer ID'),
   body('serviceTypes').isArray().withMessage('Service types must be array'),
   body('expectedBags').isInt({ min: 1 }).withMessage('Expected bags must be positive integer'),
+  body('expectedRecoveryDate').optional().isISO8601().withMessage('Expected recovery date must be valid ISO date'),
   body('landSizeAcres').optional().isNumeric(),
   body('fertilizerQuantityKg').optional().isNumeric(),
   body('pesticideQuantityLiters').optional().isNumeric(),
@@ -45,6 +46,13 @@ export const recordAggregatedValidation = [
   param('farmerId').isUUID().withMessage('Invalid farmer ID'),
   body('crop').isIn(Object.values(CropType)).withMessage('Invalid crop type'),
   body('bags').isInt({ min: 1 }).withMessage('Bags must be positive integer'),
+];
+
+export const updateExpectedRecoveryDateValidation = [
+  param('farmerId').isUUID().withMessage('Invalid farmer ID'),
+  param('serviceId').isUUID().withMessage('Invalid service ID'),
+  body('newDate').isISO8601().withMessage('New date must be valid ISO date'),
+  body('reason').isLength({ min: 5 }).withMessage('Reason must be at least 5 characters'),
 ];
 
 // ============================================
@@ -133,6 +141,7 @@ export const recordService = async (req: Request, res: Response): Promise<void> 
       pesticideType,
       pesticideQuantityLiters,
       expectedBags,
+      expectedRecoveryDate,
     } = req.body;
 
     const fieldAgentId = req.user?.user_id;
@@ -148,6 +157,7 @@ export const recordService = async (req: Request, res: Response): Promise<void> 
       warehouseId,
       serviceTypes as ServiceType[],
       expectedBags,
+      expectedRecoveryDate,
       landServices,
       landSizeAcres,
       fertilizerType,
@@ -168,7 +178,8 @@ export const recordService = async (req: Request, res: Response): Promise<void> 
 
 /**
  * POST /field-agent/farmers/:farmerId/harvest-complete
- * Mark harvest as completed
+ * DEPRECATED: Mark harvest as completed
+ * This endpoint will throw an error per authoritative specification
  */
 export const markHarvestComplete = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -186,6 +197,7 @@ export const markHarvestComplete = async (req: Request, res: Response): Promise<
       throw new AppError('Field agent or warehouse not identified', 400);
     }
 
+    // This will throw an error - method is deprecated
     const result = await fieldAgentService.markHarvestComplete(
       serviceRecordId,
       farmerId,
@@ -197,6 +209,46 @@ export const markHarvestComplete = async (req: Request, res: Response): Promise<
     res.json({
       success: true,
       data: result,
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * POST /field-agent/farmers/:farmerId/services/:serviceId/update-date
+ * NEW: Update expected recovery date when delayed
+ */
+export const updateExpectedRecoveryDate = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new AppError('Validation failed', 400);
+    }
+
+    const { farmerId, serviceId } = req.params;
+    const { newDate, reason } = req.body;
+
+    const fieldAgentId = req.user?.user_id;
+    const warehouseId = req.user?.warehouse_id;
+
+    if (!fieldAgentId || !warehouseId) {
+      throw new AppError('Field agent or warehouse not identified', 400);
+    }
+
+    const result = await fieldAgentService.updateExpectedRecoveryDate(
+      serviceId,
+      farmerId,
+      fieldAgentId,
+      warehouseId,
+      newDate,
+      reason
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Expected recovery date updated successfully',
     });
   } catch (error) {
     throw error;

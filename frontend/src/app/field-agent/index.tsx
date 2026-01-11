@@ -123,12 +123,12 @@ export default function FieldAgentHomeScreen() {
 
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => router.push('/field-agent/harvest')}
+            onPress={() => router.push('/field-agent/update-recovery-date')}
           >
-            <Text style={styles.actionIcon}>✓</Text>
+            <Text style={styles.actionIcon}>📅</Text>
             <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Mark Harvest Complete</Text>
-              <Text style={styles.actionDesc}>Update harvest status</Text>
+              <Text style={styles.actionTitle}>Update Expected Date</Text>
+              <Text style={styles.actionDesc}>Adjust recovery timeline</Text>
             </View>
             <Text style={styles.actionArrow}>›</Text>
           </TouchableOpacity>
@@ -152,7 +152,7 @@ export default function FieldAgentHomeScreen() {
           <Text style={styles.infoText}>
             1. Register farmers{'\n'}
             2. Record services{'\n'}
-            3. Mark harvest complete{'\n'}
+            3. Update expected dates if delayed{'\n'}
             4. Record inbound (recovery/aggregated)
           </Text>
         </View>

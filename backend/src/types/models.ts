@@ -29,7 +29,8 @@ export type EventPayload =
   | ToolAssignedPayload
   | ToolReturnedPayload
   | ServiceRecordedPayload
-  | HarvestCompletedPayload
+  | HarvestCompletedPayload // DEPRECATED - DO NOT USE
+  | ExpectedRecoveryDateUpdatedPayload
   | RecoveryInboundRecordedPayload
   | AggregatedInboundRecordedPayload;
 
@@ -282,14 +283,32 @@ export interface ServiceRecordedPayload {
   pesticide_type?: string;
   pesticide_quantity_liters?: number;
   expected_bags: number;
+  expected_recovery_date?: string; // ISO date - when recovery is expected
 }
 
+/**
+ * DEPRECATED: This event type is no longer used per authoritative spec.
+ * System uses expected_recovery_date updates instead of harvest completion marking.
+ */
 export interface HarvestCompletedPayload {
   service_record_id: string; // UUID
   farmer_id: string; // UUID
   field_agent_id: string; // UUID
   harvest_completed_by: string; // Field Agent user_id
   notes?: string;
+}
+
+/**
+ * NEW: Field Agent updates expected recovery date when delayed
+ */
+export interface ExpectedRecoveryDateUpdatedPayload {
+  service_record_id: string; // UUID
+  farmer_id: string; // UUID
+  field_agent_id: string; // UUID
+  old_date: string; // ISO date
+  new_date: string; // ISO date
+  reason: string; // Required - why the date changed
+  updated_by: string; // Field Agent user_id
 }
 
 export interface RecoveryInboundRecordedPayload {
@@ -321,7 +340,8 @@ export interface FieldAgent {
   id: string;
   name: string;
   phone: string;
-  community: string;
+  communities: string[]; // Array of communities/zones assigned
+  supervised_smes?: string[]; // Optional array of supervised SME identifiers
   status: FieldAgentStatus;
   created_at: Date;
   created_by: string;
@@ -356,8 +376,17 @@ export interface ServiceRecord {
   pesticide_type?: string;
   pesticide_quantity_liters?: number;
   expected_bags: number;
+  expected_recovery_date?: Date; // When recovery is expected
+  original_expected_date?: Date; // Original date (immutable)
   recovery_status: RecoveryStatus;
-  harvest_completed_at?: Date;
+  harvest_completed_at?: Date; // DEPRECATED - no longer used
+  date_update_history?: Array<{
+    updated_at: Date;
+    old_date: Date;
+    new_date: Date;
+    reason: string;
+    updated_by: string;
+  }>;
   created_at: Date;
 }
 

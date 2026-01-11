@@ -34,6 +34,16 @@ export default function UsersPage() {
     warehouseId: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState({
+    name: '',
+    phone: '',
+    pin: '', // Optional PIN update
+    role: 'OWNER' as 'OWNER' | 'ATTENDANT' | 'FIELD_AGENT',
+    warehouseId: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -154,6 +164,52 @@ export default function UsersPage() {
     }
   };
 
+  const startEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUser({
+      name: user.name,
+      phone: user.phone,
+      pin: '', // Don't load existing PIN for security
+      role: user.role,
+      warehouseId: user.warehouseId || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setIsEditing(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_ENDPOINTS.ADMIN_UPDATE_USER(editingUser.id)}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editUser),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setShowEditModal(false);
+        setEditingUser(null);
+        setEditUser({ name: '', phone: '', pin: '', role: 'OWNER', warehouseId: '' });
+        fetchData();
+        alert('User updated successfully');
+      } else {
+        alert('Failed to update user: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      alert('Error connecting to server. Please check backend logs.');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div style={{ background: 'linear-gradient(135deg, #fafaf8 0%, #efece6 100%)', minHeight: '100vh' }}>
       {/* Header */}
@@ -264,6 +320,16 @@ export default function UsersPage() {
                         <p className="text-xs mt-1" style={{ color: '#6b6f69' }}>{user.warehouseName}</p>
                       )}
                     </div>
+                    <button
+                      onClick={() => startEditUser(user)}
+                      className="p-2 rounded-lg transition-all hover:bg-blue-50"
+                      style={{ color: '#1e7cc1' }}
+                      title="Edit user"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => handleDeleteUser(user.id)}
                       className="p-2 rounded-lg transition-all hover:bg-red-50"
@@ -388,6 +454,116 @@ export default function UsersPage() {
                   style={{ background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)', color: '#1e1e1e' }}
                 >
                   {isSubmitting ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingUser && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-6 z-50"
+          style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={() => setShowEditModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-8 max-h-[90vh] overflow-y-auto"
+            style={{
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(138, 156, 123, 0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-2xl font-medium mb-6" style={{ color: '#1e1e1e' }}>Edit User</h2>
+
+            <form onSubmit={handleEditUser} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>Full Name</label>
+                <input
+                  type="text"
+                  value={editUser.name}
+                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg"
+                  style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>Phone Number</label>
+                <input
+                  type="tel"
+                  value={editUser.phone}
+                  onChange={(e) => setEditUser({ ...editUser, phone: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg"
+                  style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                  placeholder="0200000000"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>New PIN (4 digits, leave blank to keep current)</label>
+                <input
+                  type="password"
+                  value={editUser.pin}
+                  onChange={(e) => setEditUser({ ...editUser, pin: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg"
+                  style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                  placeholder="****"
+                  maxLength={4}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>Role</label>
+                <select
+                  value={editUser.role}
+                  onChange={(e) => setEditUser({ ...editUser, role: e.target.value as 'OWNER' | 'ATTENDANT' | 'FIELD_AGENT' })}
+                  className="w-full px-4 py-2.5 rounded-lg"
+                  style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                >
+                  <option value="OWNER">Owner</option>
+                  <option value="ATTENDANT">Attendant</option>
+                  <option value="FIELD_AGENT">Field Agent</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: '#3a3f38' }}>Assign to Warehouse</label>
+                <select
+                  value={editUser.warehouseId}
+                  onChange={(e) => setEditUser({ ...editUser, warehouseId: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg"
+                  style={{ border: '1px solid rgba(138, 156, 123, 0.3)', background: 'rgba(255, 255, 255, 0.6)', color: '#1e1e1e' }}
+                >
+                  <option value="">No warehouse</option>
+                  {warehouses.map(wh => (
+                    <option key={wh.id} value={wh.id}>{wh.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 py-2.5 rounded-lg font-medium"
+                  style={{ background: 'rgba(200, 185, 166, 0.4)', color: '#3a3f38' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditing}
+                  className="flex-1 py-2.5 rounded-lg font-medium disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #a7d9a0 0%, #8fcd84 100%)', color: '#1e1e1e' }}
+                >
+                  {isEditing ? 'Updating...' : 'Update User'}
                 </button>
               </div>
             </form>

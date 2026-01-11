@@ -42,11 +42,23 @@ router.post(
 
 /**
  * POST /field-agent/farmers/:farmerId/harvest-complete
- * Mark harvest as completed
+ * DEPRECATED: Mark harvest as completed
+ * This endpoint is deprecated per authoritative specification
  */
 router.post(
   '/farmers/:farmerId/harvest-complete',
   fieldAgentController.markHarvestComplete
+);
+
+/**
+ * POST /field-agent/farmers/:farmerId/services/:serviceId/update-date
+ * NEW: Update expected recovery date when delayed
+ * Requires reason (min 5 characters)
+ */
+router.post(
+  '/farmers/:farmerId/services/:serviceId/update-date',
+  fieldAgentController.updateExpectedRecoveryDateValidation,
+  fieldAgentController.updateExpectedRecoveryDate
 );
 
 /**

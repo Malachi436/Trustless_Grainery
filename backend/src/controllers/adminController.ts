@@ -231,6 +231,164 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+export const updateUserValidation = [
+  // No validation needed as all fields are optional
+];
+
+/**
+ * Update user details (name, phone, role, PIN, warehouse assignment)
+ * PUT /api/admin/users/:id
+ */
+export const updateUser = async (req: Request, res: Response): Promise<void> => {
+  const client = await db.getClient();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { id } = req.params;
+    const { name, phone, role, warehouseId } = req.body;
+    
+    // Check if user exists
+    const userResult = await client.query(
+      'SELECT id, role, warehouse_id FROM users WHERE id = $1',
+      [id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+      return;
+    }
+    
+    const user = userResult.rows[0];
+    
+    // Check if phone is already taken by another user
+    if (phone) {
+      const phoneCheck = await client.query(
+        'SELECT id FROM users WHERE phone = $1 AND id != $2',
+        [phone, id]
+      );
+      if (phoneCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          success: false,
+          error: 'Phone number already registered by another user',
+        });
+        return;
+      }
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let valueIndex = 1;
+    
+    if (name) {
+      updates.push(`name = $${valueIndex}`);
+      values.push(name);
+      valueIndex++;
+    }
+    
+    if (phone) {
+      updates.push(`phone = $${valueIndex}`);
+      values.push(phone);
+      valueIndex++;
+    }
+    
+    if (role) {
+      updates.push(`role = $${valueIndex}`);
+      values.push(role);
+      valueIndex++;
+    }
+    
+    if (warehouseId !== undefined) { // Can be null
+      updates.push(`warehouse_id = $${valueIndex}`);
+      values.push(warehouseId);
+      valueIndex++;
+    }
+    
+    if (updates.length > 0) {
+      updates.push(`updated_at = CURRENT_TIMESTAMP`);
+      values.push(id);
+      
+      await client.query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = $${valueIndex}`,
+        values
+      );
+    }
+    
+    // Handle PIN update separately
+    if (req.body.pin) {
+      const hashedPin = await bcrypt.hash(req.body.pin, 10);
+      await client.query(
+        'UPDATE users SET hashed_pin = $1 WHERE id = $2',
+        [hashedPin, id]
+      );
+    }
+    
+    // Handle warehouse assignment for attendants/field agents
+    if (role && (role === UserRole.ATTENDANT || role === UserRole.FIELD_AGENT) && warehouseId) {
+      // Remove from old warehouse assignments
+      await client.query(
+        'DELETE FROM attendant_warehouses WHERE attendant_id = $1',
+        [id]
+      );
+      
+      // Add to new warehouse
+      await client.query(
+        `INSERT INTO attendant_warehouses (attendant_id, warehouse_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [id, warehouseId]
+      );
+    }
+    
+    // Handle owner warehouse assignment
+    if (role === UserRole.OWNER && warehouseId) {
+      // Update warehouse owner if changing ownership
+      await client.query(
+        'UPDATE warehouses SET owner_id = $1 WHERE id = $2',
+        [id, warehouseId]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    // Fetch updated user to return
+    const updatedUserResult = await client.query(
+      'SELECT id, name, phone, role, warehouse_id FROM users WHERE id = $1',
+      [id]
+    );
+    
+    const updatedUser = updatedUserResult.rows[0];
+    
+    logger.info('✅ User updated by admin', { userId: id, role: updatedUser.role, phone: updatedUser.phone });
+    
+    res.json({
+      success: true,
+      data: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+        warehouse_id: updatedUser.warehouse_id,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Update user error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update user',
+    });
+  } finally {
+    client.release();
+  }
+};
+
 /**
  * Get all warehouses
  * GET /api/admin/warehouses

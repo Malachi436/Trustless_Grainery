@@ -63,7 +63,9 @@ export default function LoginPage() {
       >
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">🏢</div>
+          <div className="flex justify-center mb-4">
+            <img src="/logo.png" alt="Trustless Granary" className="w-20 h-20 object-contain" />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900">Owner Dashboard</h1>
           <p className="text-gray-600 mt-2">Warehouse Analytics & Oversight</p>
         </div>

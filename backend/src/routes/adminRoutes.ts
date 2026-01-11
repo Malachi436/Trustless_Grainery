@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as adminController from '../controllers/adminController';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate, authorize, preventPlatformAdminStaffManagement } from '../middleware/auth';
 import { UserRole } from '../types/enums';
 
 const router = Router();
@@ -38,9 +38,15 @@ router.delete('/warehouses/:id', adminController.deleteWarehouse);
 
 /**
  * POST /admin/users
- * Create new user (Owner or Attendant)
+ * Create new user (ONLY Owner - cannot create Attendants/Field Agents)
+ * Per authoritative spec: Platform Admin cannot manage warehouse staff
  */
-router.post('/users', adminController.createUserValidation, adminController.createUser);
+router.post(
+  '/users',
+  preventPlatformAdminStaffManagement,
+  adminController.createUserValidation,
+  adminController.createUser
+);
 
 /**
  * GET /admin/users
@@ -52,6 +58,8 @@ router.get('/users', adminController.getAllUsers);
  * DELETE /admin/users/:userId
  * Delete a user
  */
+router.put('/users/:id', adminController.updateUserValidation, adminController.updateUser);
+
 router.delete('/users/:userId', adminController.deleteUser);
 
 /**

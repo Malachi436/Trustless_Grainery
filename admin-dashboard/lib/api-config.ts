@@ -12,6 +12,11 @@ export const API_ENDPOINTS = {
   ADMIN_DELETE_WAREHOUSE: (warehouseId: string) => `${API_BASE_URL}/api/admin/warehouses/${warehouseId}`,
   ADMIN_SUSPEND_WAREHOUSE: (warehouseId: string) => `${API_BASE_URL}/api/admin/warehouses/${warehouseId}/suspend`,
   ADMIN_AUDIT: `${API_BASE_URL}/api/admin/audit`,
+  
+  // User Management
+  ADMIN_CREATE_USER: `${API_BASE_URL}/api/admin/users`,
+  ADMIN_UPDATE_USER: (userId: string) => `${API_BASE_URL}/api/admin/users/${userId}`,
+  ADMIN_DELETE_USER: (userId: string) => `${API_BASE_URL}/api/admin/users/${userId}`,
 };
 
 export { API_BASE_URL };

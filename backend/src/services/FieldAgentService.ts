@@ -2,7 +2,7 @@ import db from '../config/database';
 import logger from '../config/logger';
 import eventService from './EventService';
 import { EventType, FieldAgentStatus, FarmerStatus, RecoveryStatus, ServiceType } from '../types/enums';
-import { ServiceRecordedPayload, HarvestCompletedPayload } from '../types/models';
+import { ServiceRecordedPayload, HarvestCompletedPayload, ExpectedRecoveryDateUpdatedPayload } from '../types/models';
 import { AppError } from '../middleware/errorHandler';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -22,21 +22,23 @@ import { v4 as uuidv4 } from 'uuid';
 export class FieldAgentService {
   /**
    * Create a new field agent (Admin/Owner only)
+   * Now supports communities array instead of single community
    */
   async createFieldAgent(
     name: string,
     phone: string,
-    community: string,
+    communities: string[], // Changed to array
+    supervisedSmes: string[] | undefined,
     createdBy: string
   ): Promise<any> {
     try {
       const fieldAgentId = uuidv4();
       
       const result = await db.query(
-        `INSERT INTO field_agents (id, name, phone, community, created_by, status)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO field_agents (id, name, phone, communities, supervised_smes, created_by, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [fieldAgentId, name, phone, community, createdBy, FieldAgentStatus.ACTIVE]
+        [fieldAgentId, name, phone, communities, supervisedSmes || [], createdBy, FieldAgentStatus.ACTIVE]
       );
 
       logger.info(`Field agent created: ${fieldAgentId}`);
@@ -130,6 +132,7 @@ export class FieldAgentService {
   /**
    * Record services provided to a farmer
    * Creates SERVICE_RECORDED event
+   * Now includes expected_recovery_date
    */
   async recordService(
     farmerId: string,
@@ -137,6 +140,7 @@ export class FieldAgentService {
     warehouseId: string,
     serviceTypes: ServiceType[],
     expectedBags: number,
+    expectedRecoveryDate: string | undefined, // NEW: ISO date string
     landServices?: Array<{ service_type: ServiceType; date: string; notes?: string }>,
     landSizeAcres?: number,
     fertilizerType?: string,
@@ -166,15 +170,18 @@ export class FieldAgentService {
         `INSERT INTO service_records 
          (id, farmer_id, field_agent_id, warehouse_id, service_types, land_services, 
           land_size_acres, fertilizer_type, fertilizer_quantity_kg, pesticide_type, 
-          pesticide_quantity_liters, expected_bags, recovery_status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)`,
+          pesticide_quantity_liters, expected_bags, expected_recovery_date, original_expected_date, recovery_status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)`,
         [
           serviceRecordId, farmerId, fieldAgentId, warehouseId,
           serviceTypes, landServices ? JSON.stringify(landServices) : null,
           landSizeAcres || null,
           fertilizerType || null, fertilizerQuantityKg || null,
           pesticideType || null, pesticideQuantityLiters || null,
-          expectedBags, RecoveryStatus.PENDING
+          expectedBags,
+          expectedRecoveryDate ? new Date(expectedRecoveryDate) : null,
+          expectedRecoveryDate ? new Date(expectedRecoveryDate) : null, // Save original
+          RecoveryStatus.PENDING
         ]
       );
 
@@ -199,6 +206,7 @@ export class FieldAgentService {
         pesticide_type: pesticideType,
         pesticide_quantity_liters: pesticideQuantityLiters,
         expected_bags: expectedBags,
+        expected_recovery_date: expectedRecoveryDate,
       };
 
       const event = await eventService.createEvent(
@@ -222,8 +230,12 @@ export class FieldAgentService {
   }
 
   /**
-   * Mark harvest as completed (Field Agent)
-   * Creates HARVEST_COMPLETED event
+   * DEPRECATED: Mark harvest as completed (Field Agent)
+   * This method is deprecated per the authoritative specification.
+   * The system no longer uses a "mark harvest complete" action.
+   * Instead, Field Agents update expected recovery dates when delays occur.
+   * 
+   * @deprecated Use updateExpectedRecoveryDate instead
    */
   async markHarvestComplete(
     serviceRecordId: string,
@@ -232,6 +244,26 @@ export class FieldAgentService {
     warehouseId: string,
     notes?: string
   ): Promise<any> {
+    logger.warn('DEPRECATED: markHarvestComplete called - this method should not be used');
+    throw new AppError(
+      'This operation is no longer supported. Use expected recovery date updates instead.',
+      400
+    );
+  }
+
+  /**
+   * NEW: Update expected recovery date when delayed
+   * Creates EXPECTED_RECOVERY_DATE_UPDATED event
+   * Field Agent must provide a reason for the date change
+   */
+  async updateExpectedRecoveryDate(
+    serviceRecordId: string,
+    farmerId: string,
+    fieldAgentId: string,
+    warehouseId: string,
+    newDate: string, // ISO date string
+    reason: string
+  ): Promise<any> {
     const client = await db.getClient();
     
     try {
@@ -239,7 +271,7 @@ export class FieldAgentService {
 
       // Verify service record exists and belongs to farmer
       const recordCheck = await client.query(
-        `SELECT id, recovery_status FROM service_records 
+        `SELECT id, expected_recovery_date, date_update_history FROM service_records 
          WHERE id = $1 AND farmer_id = $2 AND field_agent_id = $3 AND warehouse_id = $4`,
         [serviceRecordId, farmerId, fieldAgentId, warehouseId]
       );
@@ -247,41 +279,66 @@ export class FieldAgentService {
         throw new AppError('Service record not found', 404);
       }
 
+      const currentRecord = recordCheck.rows[0];
+      const oldDate = currentRecord.expected_recovery_date;
+
+      if (!oldDate) {
+        throw new AppError('No expected recovery date set for this service record', 400);
+      }
+
+      if (!reason || reason.trim().length < 5) {
+        throw new AppError('Reason for date change must be provided (min 5 characters)', 400);
+      }
+
+      // Update date_update_history
+      const updateHistory = currentRecord.date_update_history || [];
+      updateHistory.push({
+        updated_at: new Date().toISOString(),
+        old_date: oldDate,
+        new_date: newDate,
+        reason: reason,
+        updated_by: fieldAgentId
+      });
+
       // Update service record
       await client.query(
-        `UPDATE service_records SET harvest_completed_at = CURRENT_TIMESTAMP, recovery_status = $1
-         WHERE id = $2`,
-        [RecoveryStatus.HARVESTED, serviceRecordId]
+        `UPDATE service_records 
+         SET expected_recovery_date = $1, date_update_history = $2
+         WHERE id = $3`,
+        [new Date(newDate), JSON.stringify(updateHistory), serviceRecordId]
       );
 
-      // Update recovery tracking
+      // Insert into recovery_date_updates table for audit
       await client.query(
-        `UPDATE recovery_tracking SET recovery_status = $1
-         WHERE service_record_id = $2`,
-        [RecoveryStatus.HARVESTED, serviceRecordId]
+        `INSERT INTO recovery_date_updates 
+         (service_record_id, farmer_id, field_agent_id, warehouse_id, old_date, new_date, reason, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [serviceRecordId, farmerId, fieldAgentId, warehouseId, oldDate, new Date(newDate), reason, fieldAgentId]
       );
 
-      // Create HARVEST_COMPLETED event
-      const harvestPayload: HarvestCompletedPayload = {
+      // Create EXPECTED_RECOVERY_DATE_UPDATED event
+      const updatePayload: ExpectedRecoveryDateUpdatedPayload = {
         service_record_id: serviceRecordId,
         farmer_id: farmerId,
         field_agent_id: fieldAgentId,
-        harvest_completed_by: fieldAgentId,
-        notes,
+        old_date: oldDate,
+        new_date: newDate,
+        reason: reason,
+        updated_by: fieldAgentId,
       };
 
       const event = await eventService.createEvent(
         warehouseId,
-        EventType.HARVEST_COMPLETED,
+        EventType.EXPECTED_RECOVERY_DATE_UPDATED,
         fieldAgentId,
-        harvestPayload,
+        updatePayload,
         client
       );
 
       await client.query('COMMIT');
 
-      logger.info(`Harvest marked complete for service record ${serviceRecordId}`);
-      return { eventId: event.event_id };
+      logger.info(`Expected recovery date updated for service record ${serviceRecordId}: ${oldDate} -> ${newDate}`);
+      return { eventId: event.event_id, oldDate, newDate, reason };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

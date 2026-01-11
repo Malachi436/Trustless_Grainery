@@ -59,17 +59,37 @@ export default function OwnerDashboard() {
     );
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('ownerToken');
+    localStorage.removeItem('ownerData');
+    window.location.href = '/login';
+  };
+
   if (error) {
+    const isAuthError = error.includes('401') || error.includes('Invalid or expired token');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
-        <div className="text-center">
-          <p className="text-red-600">Error: {error}</p>
-          <button
-            onClick={fetchSnapshot}
-            className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Retry
-          </button>
+        <div className="text-center max-w-md">
+          <p className="text-red-600 font-medium mb-2">Error: {error}</p>
+          {isAuthError && (
+            <p className="text-sm text-gray-600 mb-4">Your session has expired. Please log in again.</p>
+          )}
+          <div className="space-y-2">
+            {!isAuthError && (
+              <button
+                onClick={fetchSnapshot}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Retry
+              </button>
+            )}
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              {isAuthError ? 'Login Again' : 'Logout'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -85,12 +105,20 @@ export default function OwnerDashboard() {
               <h1 className="text-2xl font-bold text-gray-900">Owner Dashboard</h1>
               <p className="text-sm text-gray-600 mt-1">Analytics & Oversight</p>
             </div>
-            <button
-              onClick={fetchSnapshot}
-              className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-            >
-              🔄 Refresh
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchSnapshot}
+                className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>

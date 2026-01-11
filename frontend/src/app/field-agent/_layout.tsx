@@ -11,7 +11,7 @@ export default function FieldAgentLayout() {
       <Stack.Screen name="farmers" />
       <Stack.Screen name="farmer-detail" />
       <Stack.Screen name="service-entry" />
-      <Stack.Screen name="harvest" />
+      <Stack.Screen name="update-recovery-date" />
       <Stack.Screen name="inbound" />
       <Stack.Screen name="expected-inventory" />
       <Stack.Screen name="profile" />
