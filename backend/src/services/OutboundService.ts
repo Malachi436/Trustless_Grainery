@@ -231,26 +231,43 @@ export class OutboundService {
         client
       );
 
-      // Update request projection
+      // Update request projection - only update buyer_name if provided
+      const updateFields = [
+        'status = $1',
+        'approved_by = $2', 
+        'approved_at = $3',
+        'buyer_type = $4',
+        'buyer_phone_updated = $5',
+        'payment_method = $6',
+        'payment_status = $7',
+        'price_per_bag = $8',
+        'total_amount = $9'
+      ];
+      const updateValues: any[] = [
+        RequestStatus.APPROVED,
+        ownerId,
+        event.created_at,
+        buyerType || null,
+        buyerPhoneFinal || null,
+        paymentMethod || null,
+        finalPaymentStatus || null,
+        pricePerBag || null,
+        totalAmount || null,
+      ];
+      
+      // Only update buyer_name if provided (it has NOT NULL constraint)
+      if (buyerNameFinal) {
+        updateFields.push('buyer_name = $10');
+        updateValues.push(buyerNameFinal);
+      }
+      
+      updateValues.push(requestId); // WHERE clause parameter
+      
       await client.query(
         `UPDATE request_projections 
-         SET status = $1, approved_by = $2, approved_at = $3,
-             buyer_type = $4, buyer_phone_updated = $5,
-             payment_method = $6, payment_status = $7,
-             price_per_bag = $8, total_amount = $9
-         WHERE request_id = $10`,
-        [
-          RequestStatus.APPROVED, 
-          ownerId, 
-          event.created_at, 
-          buyerType || null,
-          buyerPhoneFinal || null,
-          paymentMethod || null,
-          finalPaymentStatus || null,
-          pricePerBag || null,
-          totalAmount || null,
-          requestId
-        ]
+         SET ${updateFields.join(', ')}
+         WHERE request_id = $${updateValues.length}`,
+        updateValues
       );
 
       // v2: Record batch allocation if provided
@@ -434,6 +451,52 @@ export class OutboundService {
 
       // Rebuild stock projections to reflect new stock level
       await stockProjectionService.rebuildProjections(request.warehouse_id, client);
+
+      // CRITICAL FIX: Deduct bags from batch(es)
+      // If specific batches were allocated, deduct from those batches
+      const allocations = await batchService.getRequestBatchAllocations(requestId);
+      
+      if (allocations.length > 0) {
+        // Batch-specific deduction (owner selected specific batches)
+        for (const allocation of allocations) {
+          await batchService.updateRemainingBags(
+            allocation.batch_id,
+            allocation.bags_allocated,
+            client
+          );
+        }
+        logger.info('✅ Batch remaining bags deducted (allocated mode)', {
+          requestId,
+          batchCount: allocations.length,
+        });
+      } else {
+        // FIFO mode: deduct from oldest batch(es) with matching crop
+        const availableBatches = await batchService.getWarehouseBatches(
+          request.warehouse_id,
+          request.crop,
+          true // onlyAvailable
+        );
+        
+        let remainingToDeduct = request.bag_quantity;
+        
+        for (const batch of availableBatches) {
+          if (remainingToDeduct <= 0) break;
+          
+          const deductFromThisBatch = Math.min(batch.remaining_bags, remainingToDeduct);
+          await batchService.updateRemainingBags(
+            batch.id,
+            deductFromThisBatch,
+            client
+          );
+          remainingToDeduct -= deductFromThisBatch;
+        }
+        
+        logger.info('✅ Batch remaining bags deducted (FIFO mode)', {
+          requestId,
+          totalBags: request.bag_quantity,
+          batchesUsed: availableBatches.length,
+        });
+      }
 
       await client.query('COMMIT');
 

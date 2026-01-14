@@ -28,6 +28,8 @@ export class AnalyticsService {
     pendingRequests: number;
     outstandingCreditTotal: number;
     toolsAssigned: number;
+    expected_inventory?: any[];
+    recovery_summary?: any;
   }> {
     try {
       // Total stock
@@ -83,7 +85,8 @@ export class AnalyticsService {
          FROM transaction_projections
          WHERE warehouse_id = $1 
          AND payment_method = 'CREDIT'
-         AND payment_status = 'PENDING'`,
+         AND payment_status = 'PENDING'
+         AND current_status = 'EXECUTED'`,
         [warehouseId]
       );
 
@@ -95,6 +98,44 @@ export class AnalyticsService {
         [warehouseId]
       );
 
+      // Expected inventory from service records
+      const expectedInventoryResult = await db.query(
+        `SELECT 
+           sr.id AS service_record_id,
+           f.name AS farmer_name,
+           f.id AS farmer_id,
+           fa.name AS field_agent_name,
+           sr.expected_bags,
+           sr.expected_recovery_date,
+           rt.received_bags,
+           rt.recovery_status,
+           sr.created_at AS service_date,
+           sr.warehouse_id
+         FROM service_records sr
+         INNER JOIN farmers f ON sr.farmer_id = f.id
+         INNER JOIN field_agents fa ON sr.field_agent_id = fa.id
+         LEFT JOIN recovery_tracking rt ON sr.id = rt.service_record_id
+         WHERE sr.warehouse_id = $1
+         ORDER BY sr.created_at DESC`,
+        [warehouseId]
+      );
+
+      // Recovery summary
+      const recoverySummaryResult = await db.query(
+        `SELECT 
+           COUNT(*) AS total_recovery_records,
+           COALESCE(SUM(sr.expected_bags), 0) AS total_expected,
+           COALESCE(SUM(rt.received_bags), 0) AS total_received,
+           COUNT(CASE WHEN rt.recovery_status = 'COMPLETED' THEN 1 END) AS completed_count,
+           COUNT(CASE WHEN rt.recovery_status = 'PARTIAL' THEN 1 END) AS partial_count,
+           COUNT(CASE WHEN rt.recovery_status = 'PENDING' THEN 1 END) AS pending_count,
+           COUNT(CASE WHEN rt.recovery_status = 'HARVESTED' THEN 1 END) AS harvested_count
+         FROM service_records sr
+         LEFT JOIN recovery_tracking rt ON sr.id = rt.service_record_id
+         WHERE sr.warehouse_id = $1`,
+        [warehouseId]
+      );
+
       return {
         totalStockBags: parseInt(stockResult.rows[0].total_bags),
         stockBySource,
@@ -102,6 +143,8 @@ export class AnalyticsService {
         pendingRequests: parseInt(requestResult.rows[0].count),
         outstandingCreditTotal: parseFloat(creditResult.rows[0].total),
         toolsAssigned: parseInt(toolsResult.rows[0].count),
+        expected_inventory: expectedInventoryResult.rows,
+        recovery_summary: recoverySummaryResult.rows[0],
       };
     } catch (error) {
       logger.error('Failed to get executive snapshot', error);
@@ -172,11 +215,13 @@ export class AnalyticsService {
       const transactions = await db.query(
         `SELECT 
            tp.*,
+           rp.photo_url,
            requester.name AS requester_name,
            approver.name AS approver_name,
            executor.name AS executor_name,
            confirmer.name AS confirmer_name
          FROM transaction_projections tp
+         LEFT JOIN request_projections rp ON tp.request_id = rp.request_id
          LEFT JOIN users requester ON tp.requested_by = requester.id
          LEFT JOIN users approver ON tp.approved_by = approver.id
          LEFT JOIN users executor ON tp.executed_by = executor.id
@@ -285,9 +330,17 @@ export class AnalyticsService {
   async getOutstandingCredit(warehouseId: string): Promise<any[]> {
     try {
       const result = await db.query(
-        `SELECT * FROM outstanding_credit
-         WHERE warehouse_id = $1
-         ORDER BY days_outstanding DESC`,
+        `SELECT 
+           oc.*,
+           cpt.total_paid,
+           cpt.remaining_amount AS remaining_balance,
+           cpt.last_payment_date,
+           last_payer.name AS last_payment_by_name
+         FROM outstanding_credit oc
+         LEFT JOIN credit_payment_tracking cpt ON oc.transaction_id = cpt.transaction_id
+         LEFT JOIN users last_payer ON cpt.last_payment_by = last_payer.id
+         WHERE oc.warehouse_id = $1
+         ORDER BY oc.days_outstanding DESC`,
         [warehouseId]
       );
 

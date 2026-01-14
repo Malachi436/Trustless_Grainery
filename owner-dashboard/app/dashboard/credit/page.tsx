@@ -7,6 +7,11 @@ import type { OutstandingCredit } from '@/lib/types';
 export default function CreditPage() {
   const [credits, setCredits] = useState<OutstandingCredit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCredit, setSelectedCredit] = useState<OutstandingCredit | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [amountPaid, setAmountPaid] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchCredits();
@@ -33,7 +38,62 @@ export default function CreditPage() {
     }
   };
 
-  const totalOutstanding = credits.reduce((sum, c) => sum + (c.total_amount || 0), 0);
+  const totalOutstanding = credits.reduce((sum, c) => sum + parseFloat(c.total_amount?.toString() || '0'), 0);
+
+  const handleRecordPayment = (credit: OutstandingCredit) => {
+    setSelectedCredit(credit);
+    setAmountPaid('');
+    setNotes('');
+    setShowPaymentModal(true);
+  };
+
+  const submitPayment = async () => {
+    if (!selectedCredit || !amountPaid) return;
+
+    const amount = parseFloat(amountPaid);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    const remaining = (selectedCredit.remaining_balance ?? selectedCredit.total_amount ?? 0);
+    if (amount > remaining) {
+      alert(`Amount exceeds remaining balance of GH₵${remaining.toFixed(2)}`);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const token = localStorage.getItem('ownerToken');
+      
+      const response = await fetch(API_ENDPOINTS.RECORD_CREDIT_PAYMENT(selectedCredit.transaction_id), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amountPaid: amount,
+          notes: notes || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(data.data.message || 'Payment recorded successfully');
+        setShowPaymentModal(false);
+        fetchCredits(); // Refresh the list
+      } else {
+        alert(data.error || 'Failed to record payment');
+      }
+    } catch (err) {
+      console.error('Failed to record payment:', err);
+      alert('Failed to record payment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -45,12 +105,20 @@ export default function CreditPage() {
               <h1 className="text-2xl font-bold text-gray-900">Outstanding Credit</h1>
               <p className="text-sm text-gray-600 mt-1">Monitor pending credit payments</p>
             </div>
-            <button
-              onClick={() => window.location.href = '/dashboard'}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchCredits}
+                className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => window.location.href = '/dashboard'}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -109,9 +177,11 @@ export default function CreditPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crop</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Outstanding</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved By</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -120,6 +190,9 @@ export default function CreditPage() {
                     const urgencyColor = daysOutstanding > 30 ? 'text-red-600' : 
                                        daysOutstanding > 14 ? 'text-yellow-600' : 
                                        'text-gray-900';
+                    const totalAmount = parseFloat(credit.total_amount?.toString() || '0');
+                    const paidAmount = parseFloat(credit.total_paid?.toString() || '0');
+                    const remainingAmount = parseFloat(credit.remaining_balance?.toString() || totalAmount.toString());
                     
                     return (
                       <tr key={credit.transaction_id} className="hover:bg-gray-50">
@@ -136,13 +209,24 @@ export default function CreditPage() {
                           {credit.bag_quantity}
                         </td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          GH₵{(credit.total_amount || 0).toLocaleString()}
+                          GH₵{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-green-600">
+                          {paidAmount > 0 ? `GH₵${paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-red-600">
+                          GH₵{remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className={`px-6 py-4 text-sm font-medium ${urgencyColor}`}>
                           {daysOutstanding} days
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {credit.approved_by_name || 'N/A'}
+                        <td className="px-6 py-4 text-sm">
+                          <button
+                            onClick={() => handleRecordPayment(credit)}
+                            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-xs font-medium"
+                          >
+                            Record Payment
+                          </button>
                         </td>
                       </tr>
                     );
@@ -158,15 +242,102 @@ export default function CreditPage() {
           <div className="flex items-start gap-3">
             <span className="text-xl">ℹ️</span>
             <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Payment Confirmation</p>
+              <p className="font-medium mb-1">Payment Recording</p>
               <p>
-                Only attendants can mark credit payments as received by creating a PAYMENT_CONFIRMED event.
-                Owners cannot directly update payment status to maintain separation of duties.
+                Owners can record partial or full payments. The system tracks total paid, remaining balance, and payment history for each credit transaction.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedCredit && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={() => !submitting && setShowPaymentModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Record Payment</h3>
+            
+            <div className="space-y-4">
+              {/* Credit Details */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Buyer:</span>
+                  <span className="font-medium">{selectedCredit.buyer_name || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total Amount:</span>
+                  <span className="font-medium">GH₵{parseFloat(selectedCredit.total_amount?.toString() || '0').toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Already Paid:</span>
+                  <span className="font-medium text-green-600">GH₵{parseFloat(selectedCredit.total_paid?.toString() || '0').toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t pt-2">
+                  <span className="text-gray-600 font-semibold">Remaining:</span>
+                  <span className="font-bold text-red-600">GH₵{parseFloat(selectedCredit.remaining_balance?.toString() || selectedCredit.total_amount?.toString() || '0').toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount Paid <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Notes Input */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Payment details or notes..."
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitPayment}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={submitting || !amountPaid}
+                >
+                  {submitting ? 'Recording...' : 'Record Payment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

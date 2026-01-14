@@ -23,7 +23,7 @@ export class GenesisService {
   /**
    * Record Genesis Inventory (Admin only)
    * This is the FIRST event in a warehouse's lifecycle
-   * Extended to optionally create initial batches
+   * ALWAYS creates initial batches with QR codes for dispatch compatibility
    */
   async recordGenesis(
     warehouseId: string,
@@ -33,7 +33,6 @@ export class GenesisService {
     photoUrls: string[],
     notes?: string,
     // v2 batch parameters (optional)
-    createBatch?: boolean,
     batchSourceType?: BatchSourceType,
     sourceName?: string,
     sourceLocation?: string
@@ -74,8 +73,8 @@ export class GenesisService {
         client
       );
 
-      // Update stock projection
-      await stockProjectionService.updateProjection(warehouseId, genesisEvent, client);
+      // DO NOT update stock projection yet - wait for owner confirmation
+      // Stock should only appear after confirmGenesis() is called
 
       // Update warehouse status to GENESIS_PENDING
       if (warehouse.status === WarehouseStatus.SETUP) {
@@ -87,36 +86,37 @@ export class GenesisService {
 
       let batchId: string | undefined;
 
-      // v2: Optionally create initial batch
-      if (createBatch) {
-        const batch = await batchService.createBatch(
-          warehouseId,
-          crop,
-          bagQuantity,
-          adminId,
-          batchSourceType || BatchSourceType.OWN_FARM,
-          sourceName,
-          sourceLocation
-        );
-        batchId = batch.id;
-        
-        logger.info('✅ Initial batch created during genesis', {
-          batchId,
-          crop,
-          bagQuantity,
-          sourceType: batchSourceType,
-        });
-      }
+      // ALWAYS create initial batch with QR code for genesis inventory
+      // This ensures dispatch can work with QR verification
+      const batch = await batchService.createBatch(
+        warehouseId,
+        crop,
+        bagQuantity,
+        adminId,
+        batchSourceType || BatchSourceType.OWN_FARM,
+        sourceName || 'Genesis Inventory',
+        sourceLocation || 'Initial Stock'
+      );
+      batchId = batch.id;
+      
+      logger.info('✅ Genesis batch created with QR code', {
+        batchId,
+        batchCode: batch.batch_code,
+        crop,
+        bagQuantity,
+        sourceType: batchSourceType || BatchSourceType.OWN_FARM,
+      });
 
       return { event: genesisEvent, batchId };
     });
 
-    logger.info('✅ Genesis inventory recorded', {
+    logger.info('✅ Genesis inventory recorded with batch', {
       warehouseId,
       crop,
       bagQuantity,
       eventId: result.event.event_id,
-      batchCreated: !!result.batchId,
+      batchId: result.batchId,
+      batchCreated: true,
     });
 
     return result;
@@ -150,17 +150,61 @@ export class GenesisService {
       throw new AppError('No Genesis inventory recorded yet', 400);
     }
 
-    // Update all Genesis events with owner confirmation
-    await db.query(
-      `UPDATE events 
-       SET payload = payload || jsonb_build_object('confirmed_by_owner', $1::text)
-       WHERE warehouse_id = $2 
-       AND event_type = $3`,
-      [ownerId, warehouseId, EventType.GENESIS_INVENTORY_RECORDED]
-    );
+    // Use transaction to ensure atomicity
+    await db.transaction(async (client) => {
+      // Update all Genesis events with owner confirmation
+      await client.query(
+        `UPDATE events 
+         SET payload = payload || jsonb_build_object('confirmed_by_owner', $1::text)
+         WHERE warehouse_id = $2 
+         AND event_type = $3`,
+        [ownerId, warehouseId, EventType.GENESIS_INVENTORY_RECORDED]
+      );
 
-    // Activate warehouse
-    await warehouseService.updateStatus(warehouseId, WarehouseStatus.ACTIVE);
+      // NOW update stock projections - stock should appear only after owner confirms
+      for (const genesisEvent of genesisEvents) {
+        await stockProjectionService.updateProjection(warehouseId, genesisEvent, client);
+        
+        // Ensure batch exists for this genesis event
+        // If batch wasn't created during genesis recording, create it now
+        const payload = genesisEvent.payload as GenesisInventoryPayload;
+        const existingBatch = await client.query(
+          `SELECT id FROM batches 
+           WHERE warehouse_id = $1 
+           AND crop_type = $2 
+           AND initial_bags = $3
+           AND created_at::date = $4::date
+           LIMIT 1`,
+          [warehouseId, payload.crop, payload.bag_quantity, genesisEvent.created_at]
+        );
+        
+        if (existingBatch.rows.length === 0) {
+          // No batch exists, create one now
+          const batch = await batchService.createBatch(
+            warehouseId,
+            payload.crop,
+            payload.bag_quantity,
+            genesisEvent.actor_id,
+            BatchSourceType.OWN_FARM,
+            'Genesis Inventory',
+            'Initial Stock'
+          );
+          
+          logger.info('✅ Retroactive genesis batch created during confirmation', {
+            batchId: batch.id,
+            batchCode: batch.batch_code,
+            crop: payload.crop,
+            quantity: payload.bag_quantity,
+          });
+        }
+      }
+
+      // Activate warehouse
+      await client.query(
+        'UPDATE warehouses SET status = $1 WHERE id = $2',
+        [WarehouseStatus.ACTIVE, warehouseId]
+      );
+    });
 
     logger.info('✅ Genesis confirmed by owner', { warehouseId, ownerId });
   }

@@ -52,12 +52,20 @@ export default function ToolsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Tool Register</h1>
               <p className="text-sm text-gray-600 mt-1">Track tool assignments and accountability</p>
             </div>
-            <button
-              onClick={() => window.location.href = '/dashboard'}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchTools}
+                className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => window.location.href = '/dashboard'}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
       </div>

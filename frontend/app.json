@@ -12,7 +12,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.trustless.granary"
@@ -25,7 +24,16 @@
         "backgroundColor": "#ffffff"
       }
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Trustless Granary to access your camera for QR scanning."
+        }
+      ],
+      "expo-barcode-scanner"
+    ],
     "experiments": {
       "typedRoutes": false
     }

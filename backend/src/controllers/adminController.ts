@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import authService from '../services/AuthService';
 import warehouseService from '../services/WarehouseService';
 import genesisService from '../services/GenesisService';
 import toolService from '../services/ToolService';
@@ -76,16 +75,53 @@ export const createWarehouse = async (req: Request, res: Response): Promise<void
 
     // Step 2: Create the warehouse with the owner_id
     const warehouseId = uuidv4();
+    
+    // Generate warehouse code from name (first 3 consonants or letters)
+    const nameUpper = name.toUpperCase();
+    const letters = nameUpper.replace(/[^A-Z]/g, '');
+    let warehouseCode = '';
+    
+    // Extract first 3 consonants
+    for (let i = 0; i < letters.length && warehouseCode.length < 3; i++) {
+      if (!'AEIOU'.includes(letters[i])) {
+        warehouseCode += letters[i];
+      }
+    }
+    
+    // If we don't have 3 letters, pad with any letters from name
+    if (warehouseCode.length < 3) {
+      for (let i = 0; i < letters.length && warehouseCode.length < 3; i++) {
+        if (!warehouseCode.includes(letters[i])) {
+          warehouseCode += letters[i];
+        }
+      }
+    }
+    
+    // If still not 3 letters, pad with 'X'
+    while (warehouseCode.length < 3) {
+      warehouseCode += 'X';
+    }
+    
+    warehouseCode = warehouseCode.substring(0, 3);
+    
     const warehouseResult = await client.query(
-      `INSERT INTO warehouses (id, name, location, status, owner_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO warehouses (id, name, location, status, owner_id, warehouse_code)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [warehouseId, name, location, WarehouseStatus.SETUP, ownerId]
+      [warehouseId, name, location, WarehouseStatus.SETUP, ownerId, warehouseCode]
     );
 
     // Step 3: Update the owner's warehouse_id
     await client.query(
       `UPDATE users SET warehouse_id = $1 WHERE id = $2`,
+      [warehouseId, ownerId]
+    );
+
+    // Step 4: Add owner to warehouse_owners table
+    await client.query(
+      `INSERT INTO warehouse_owners (warehouse_id, user_id, role_type)
+       VALUES ($1, $2, 'OWNER')
+       ON CONFLICT (warehouse_id, user_id) DO NOTHING`,
       [warehouseId, ownerId]
     );
 
@@ -203,6 +239,13 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         `UPDATE warehouses SET owner_id = $1 WHERE id = $2`,
         [userId, warehouseId]
       );
+      // Add owner to warehouse_owners table
+      await client.query(
+        `INSERT INTO warehouse_owners (warehouse_id, user_id, role_type)
+         VALUES ($1, $2, 'OWNER')
+         ON CONFLICT (warehouse_id, user_id) DO NOTHING`,
+        [warehouseId, userId]
+      );
     }
 
     await client.query('COMMIT');
@@ -262,8 +305,6 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       });
       return;
     }
-    
-    const user = userResult.rows[0];
     
     // Check if phone is already taken by another user
     if (phone) {
@@ -348,10 +389,24 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     
     // Handle owner warehouse assignment
     if (role === UserRole.OWNER && warehouseId) {
+      // Remove from old warehouse_owners
+      await client.query(
+        'DELETE FROM warehouse_owners WHERE user_id = $1',
+        [id]
+      );
+      
       // Update warehouse owner if changing ownership
       await client.query(
         'UPDATE warehouses SET owner_id = $1 WHERE id = $2',
         [id, warehouseId]
+      );
+      
+      // Add to warehouse_owners table
+      await client.query(
+        `INSERT INTO warehouse_owners (warehouse_id, user_id, role_type)
+         VALUES ($1, $2, 'OWNER')
+         ON CONFLICT (warehouse_id, user_id) DO NOTHING`,
+        [warehouseId, id]
       );
     }
     
@@ -393,7 +448,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
  * Get all warehouses
  * GET /api/admin/warehouses
  */
-export const getAllWarehouses = async (req: Request, res: Response): Promise<void> => {
+export const getAllWarehouses = async (_req: Request, res: Response): Promise<void> => {
   try {
     const warehouses = await warehouseService.getAllWarehouses();
 
@@ -498,7 +553,47 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Delete the user
+    // Check if user has created batches
+    const batchResult = await db.query('SELECT COUNT(*) as count FROM batches WHERE created_by = $1', [userId]);
+    if (batchResult.rows[0].count > 0) {
+      res.status(400).json({
+        success: false,
+        error: `Cannot delete user because they have created ${batchResult.rows[0].count} batch(es). Batches are permanent inventory records.`,
+      });
+      return;
+    }
+
+    // Delete user-related data in proper order to avoid FK violations
+    // CRITICAL: Must delete ALL records that reference this user BEFORE deleting the user
+    
+    // Step 1: Delete field_agents records created by this user
+    await db.query('DELETE FROM field_agents WHERE created_by = $1', [userId]);
+    
+    // Step 2: Delete farmers created by this user  
+    await db.query('DELETE FROM farmers WHERE created_by = $1', [userId]);
+    
+    // Step 3: Delete from attendant_warehouses
+    await db.query('DELETE FROM attendant_warehouses WHERE attendant_id = $1', [userId]);
+    
+    // Step 4: Delete from warehouse_owners
+    await db.query('DELETE FROM warehouse_owners WHERE user_id = $1', [userId]);
+    
+    // Step 5: Delete from warehouse_field_agents where user assigned
+    await db.query('DELETE FROM warehouse_field_agents WHERE assigned_by = $1', [userId]);
+    
+    // Step 6: Nullify service_records references
+    await db.query('UPDATE service_records SET harvest_completed_by = NULL WHERE harvest_completed_by = $1', [userId]);
+    
+    // Step 7: Nullify request_projections references
+    await db.query('UPDATE request_projections SET requested_by = NULL WHERE requested_by = $1', [userId]);
+    await db.query('UPDATE request_projections SET approved_by = NULL WHERE approved_by = $1', [userId]);
+    await db.query('UPDATE request_projections SET executed_by = NULL WHERE executed_by = $1', [userId]);
+    await db.query('UPDATE request_projections SET payment_confirmed_by = NULL WHERE payment_confirmed_by = $1', [userId]);
+    
+    // Step 8: Delete batch_scans (scanned_by references users)
+    await db.query('DELETE FROM batch_scans WHERE scanned_by = $1', [userId]);
+    
+    // Step 9: Finally delete the user
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
 
     logger.info(`User deleted: ${userId}`, { userId });
@@ -546,22 +641,64 @@ export const deleteWarehouse = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // 1. Delete associated data first (to satisfy FK constraints)
-    // Delete from attendant_warehouses
+    // 1. Temporarily drop the no_delete_events rule to allow event deletion
+    await client.query('DROP RULE IF EXISTS no_delete_events ON events');
+
+    // 2. Delete associated data first (to satisfy FK constraints)
+    // CRITICAL: Follow proper deletion order to avoid FK violations
+    
+    // Step 1: Delete batch_sequences FIRST (before batches)
+    await client.query('DELETE FROM batch_sequences WHERE warehouse_id = $1', [id]);
+    
+    // Step 2: Delete batch_scans (references both batches and request_projections)
+    await client.query('DELETE FROM batch_scans bs USING batches b WHERE bs.batch_id = b.id AND b.warehouse_id = $1', [id]);
+    
+    // Step 3: Delete batch_allocations (references batches)
+    await client.query('DELETE FROM batch_allocations ba USING batches b WHERE ba.batch_id = b.id AND b.warehouse_id = $1', [id]);
+    
+    // Step 4: Delete batches
+    await client.query('DELETE FROM batches WHERE warehouse_id = $1', [id]);
+    
+    // Step 5: Delete from attendant_warehouses
     await client.query('DELETE FROM attendant_warehouses WHERE warehouse_id = $1', [id]);
     
-    // Delete from events (Note: Schema rules might block this if not careful, but as admin we allow it for cleanup)
-    // The schema says CREATE RULE no_delete_events AS ON DELETE TO events DO INSTEAD NOTHING;
-    // We might need to drop the rule or use a different approach if we want to delete events.
-    // For now, let's try to delete. If the rule blocks it, the transaction will still succeed but nothing happens.
+    // Step 6: Delete from events
     await client.query('DELETE FROM events WHERE warehouse_id = $1', [id]);
     
-    // Delete from projections
+    // Step 7: Delete credit payment tracking (BEFORE transaction_projections)
+    await client.query(`
+      DELETE FROM credit_payment_history 
+      WHERE transaction_id IN (
+        SELECT transaction_id FROM transaction_projections WHERE warehouse_id = $1
+      )
+    `, [id]);
+    await client.query(`
+      DELETE FROM credit_payment_tracking 
+      WHERE transaction_id IN (
+        SELECT transaction_id FROM transaction_projections WHERE warehouse_id = $1
+      )
+    `, [id]);
+    
+    // Step 8: Delete from projections (transaction_projections must be deleted before request_projections)
+    await client.query('DELETE FROM transaction_projections WHERE warehouse_id = $1', [id]);
     await client.query('DELETE FROM request_projections WHERE warehouse_id = $1', [id]);
     await client.query('DELETE FROM stock_projections WHERE warehouse_id = $1', [id]);
+    
+    // Step 9: Delete outgrower-related tables
+    await client.query('DELETE FROM recovery_tracking WHERE warehouse_id = $1', [id]);
+    await client.query('DELETE FROM service_records WHERE warehouse_id = $1', [id]);
+    await client.query('DELETE FROM farmers WHERE warehouse_id = $1', [id]);
+    await client.query('DELETE FROM warehouse_field_agents WHERE warehouse_id = $1', [id]);
+    
+    // Step 10: Delete other warehouse-related data
+    await client.query('DELETE FROM tools WHERE warehouse_id = $1', [id]);
+    await client.query('DELETE FROM warehouse_owners WHERE warehouse_id = $1', [id]);
 
-    // 2. Finally delete the warehouse
+    // Finally delete the warehouse
     await client.query('DELETE FROM warehouses WHERE id = $1', [id]);
+
+    // Recreate the no_delete_events rule
+    await client.query('CREATE RULE no_delete_events AS ON DELETE TO events DO INSTEAD NOTHING');
 
     await client.query('COMMIT');
 
@@ -705,9 +842,13 @@ export const recordGenesis = async (req: Request, res: Response): Promise<void> 
       toolCount: createdTools.length,
     });
   } catch (error) {
-    throw new AppError(
-      error instanceof Error ? error.message : 'Failed to record genesis',
-      500
-    );
+    logger.error('Genesis recording error:', error);
+    const statusCode = error instanceof AppError ? error.statusCode : 500;
+    const message = error instanceof Error ? error.message : 'Failed to record genesis';
+    
+    res.status(statusCode).json({
+      success: false,
+      error: message,
+    });
   }
 };

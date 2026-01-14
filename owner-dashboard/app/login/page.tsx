@@ -27,11 +27,12 @@ export default function LoginPage() {
         body: JSON.stringify({ phone, pin }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Server error' }));
         throw new Error(data.error || 'Login failed');
       }
+
+      const data = await response.json();
 
       // Verify user is an owner
       if (data.data.user.role !== 'OWNER') {
@@ -45,7 +46,11 @@ export default function LoginPage() {
       // Redirect to dashboard
       window.location.href = '/dashboard';
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        setError('Cannot connect to server. Please ensure backend is running.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+      }
     } finally {
       setLoading(false);
     }

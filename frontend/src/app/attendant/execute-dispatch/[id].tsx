@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
 
@@ -24,9 +25,14 @@ export default function ExecuteDispatchScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannedBatches, setScannedBatches] = useState<string[]>([]);
+  const [allocations, setAllocations] = useState<any[]>([]);
 
   useEffect(() => {
     fetchRequest();
+    fetchAllocations();
   }, [id]);
 
   const fetchRequest = async () => {
@@ -41,7 +47,7 @@ export default function ExecuteDispatchScreen() {
       const data = await response.json();
 
       if (data.success) {
-        const foundRequest = data.data.find((r: any) => r.id === id);
+        const foundRequest = data.data.find((r: any) => r.request_id === id);
         if (foundRequest) {
           setRequest(foundRequest);
         } else {
@@ -57,6 +63,96 @@ export default function ExecuteDispatchScreen() {
       router.back();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchAllocations = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.ATTENDANT_BATCH_ALLOCATIONS(id as string), {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success && data.data) {
+        setAllocations(data.data);
+      }
+    } catch (error) {
+      console.error('Fetch allocations error:', error);
+      // Don't block if allocations fail - might be FIFO mode
+    }
+  };
+
+  const handleScanQR = async () => {
+    if (!permission) {
+      Alert.alert('Loading', 'Camera permission is being loaded...');
+      return;
+    }
+    if (!permission.granted) {
+      const { granted } = await requestPermission();
+      if (!granted) {
+        Alert.alert('No Permission', 'Camera access is required to scan QR codes.');
+        return;
+      }
+    }
+    setShowScanner(true);
+  };
+
+  const handleBarCodeScanned = async (result: { data: string }) => {
+    const data = result.data;
+    setShowScanner(false);
+    
+    // Parse QR code data (it's JSON)
+    let batchCode: string;
+    try {
+      const qrData = JSON.parse(data);
+      batchCode = qrData.batch_code;
+      if (!batchCode) {
+        Alert.alert('Invalid QR', 'QR code does not contain batch information.');
+        return;
+      }
+    } catch (error) {
+      // If not JSON, assume it's just the batch code string
+      batchCode = data;
+    }
+    
+    // Check if already scanned
+    if (scannedBatches.includes(batchCode)) {
+      Alert.alert('Already Scanned', `Batch ${batchCode} has already been scanned.`);
+      return;
+    }
+
+    // Verify QR code against allocations
+    try {
+      const response = await fetch(API_ENDPOINTS.ATTENDANT_BATCH_VERIFY(batchCode), {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const apiResult = await response.json();
+
+      if (apiResult.success && apiResult.data) {
+        const batch = apiResult.data;
+        
+        // Check if this batch is allocated to this request
+        const isAllocated = allocations.some(a => a.batch_code === batchCode);
+        
+        if (allocations.length > 0 && !isAllocated) {
+          Alert.alert('Wrong Batch', `Batch ${batchCode} is not allocated to this dispatch.`);
+          return;
+        }
+
+        // Add to scanned batches
+        setScannedBatches([...scannedBatches, batchCode]);
+        Alert.alert('QR Verified', `Batch ${batchCode} verified successfully!`);
+      } else {
+        Alert.alert('Invalid QR', 'QR code not found in system.');
+      }
+    } catch (error) {
+      console.error('QR verification error:', error);
+      Alert.alert('Error', 'Failed to verify QR code.');
     }
   };
 
@@ -80,6 +176,16 @@ export default function ExecuteDispatchScreen() {
   };
 
   const handleExecute = () => {
+    // Check if QR scanning is required
+    const requiredScans = allocations.length > 0 ? allocations.length : 1;
+    if (scannedBatches.length < requiredScans) {
+      Alert.alert(
+        'QR Scan Required', 
+        `Please scan QR codes for all batches (${scannedBatches.length}/${requiredScans} scanned).`
+      );
+      return;
+    }
+
     if (!photoUri) {
       Alert.alert('Photo Required', 'Please take a photo for verification before executing dispatch.');
       return;
@@ -89,9 +195,10 @@ export default function ExecuteDispatchScreen() {
       'Confirm Dispatch',
       `Execute dispatch?
       
-Crop: ${request?.cropType}
-Quantity: ${request?.bags} bags
-Buyer: ${request?.buyerName}
+Crop: ${request?.crop}  
+Quantity: ${request?.bag_quantity} bags
+Buyer: ${request?.buyer_name || 'TBD'}  
+Batches Scanned: ${scannedBatches.length}
 Photo: Attached`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -108,37 +215,55 @@ Photo: Attached`,
     try {
       setIsExecuting(true);
 
-      const response = await fetch(API_ENDPOINTS.ATTENDANT_EXECUTE(id as string), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          photoProof: photoUri,
-        }),
-      });
+      // Convert photo URI to base64
+      const response = await fetch(photoUri!);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onloadend = async () => {
+        const base64data = reader.result as string;
+        // Remove data URL prefix
+        const base64String = base64data.split(',')[1];
 
-      const data = await response.json();
+        const apiResponse = await fetch(API_ENDPOINTS.ATTENDANT_EXECUTE(id as string), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            photoBase64: base64String,
+          }),
+        });
 
-      if (data.success) {
-        Alert.alert(
-          'Dispatch Completed',
-          'Stock has been dispatched successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/attendant'),
-            },
-          ]
-        );
-      } else {
-        throw new Error(data.error || 'Failed to execute dispatch');
-      }
+        const data = await apiResponse.json();
+
+        if (data.success) {
+          Alert.alert(
+            'Dispatch Completed',
+            'Stock has been dispatched successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/attendant'),
+              },
+            ]
+          );
+        } else {
+          throw new Error(data.error || 'Failed to execute dispatch');
+        }
+        setIsExecuting(false);
+      };
+      
+      reader.onerror = () => {
+        setIsExecuting(false);
+        Alert.alert('Error', 'Failed to process photo');
+      };
+      
+      reader.readAsDataURL(blob);
     } catch (error: any) {
       console.error('Execute dispatch error:', error);
       Alert.alert('Error', error.message || 'Failed to execute dispatch');
-    } finally {
       setIsExecuting(false);
     }
   };
@@ -187,26 +312,62 @@ Photo: Attached`,
             
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Crop Type:</Text>
-              <Text style={styles.detailValue}>{request.cropType}</Text>
+              <Text style={styles.detailValue}>{request.crop}</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Quantity:</Text>
-              <Text style={styles.detailValue}>{request.bags} bags</Text>
+              <Text style={styles.detailValue}>{request.bag_quantity} bags</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Buyer:</Text>
-              <Text style={styles.detailValue}>{request.buyerName}</Text>
+              <Text style={styles.detailValue}>{request.buyer_name || 'TBD'}</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Phone:</Text>
-              <Text style={styles.detailValue}>{request.buyerPhone}</Text>
+              <Text style={styles.detailValue}>{request.buyer_phone_updated || 'N/A'}</Text>
             </View>
 
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>Approved by Owner</Text>
+            </View>
+          </View>
+
+          {/* QR Code Scanning */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>QR Code Verification</Text>
+            <Text style={styles.photoHint}>
+              Scan {allocations.length > 0 ? allocations.length : 1} batch QR code(s)
+            </Text>
+
+            {scannedBatches.length > 0 && (
+              <View style={styles.scannedList}>
+                {scannedBatches.map((batch, index) => (
+                  <View key={index} style={styles.scannedItem}>
+                    <Text style={styles.scannedIcon}>✓</Text>
+                    <Text style={styles.scannedText}>{batch}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.scanButton}
+              onPress={handleScanQR}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.scanButtonIcon}>📷</Text>
+              <Text style={styles.scanButtonText}>
+                {scannedBatches.length > 0 ? 'Scan Another' : 'Scan QR Code'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.scanProgress}>
+              <Text style={styles.scanProgressText}>
+                {scannedBatches.length}/{allocations.length > 0 ? allocations.length : 1} scanned
+              </Text>
             </View>
           </View>
 
@@ -255,6 +416,29 @@ Photo: Attached`,
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {/* QR Scanner Modal */}
+      {showScanner && (
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            onBarcodeScanned={handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
+            }}
+          />
+          <View style={styles.scannerOverlay}>
+            <Text style={styles.scannerTitle}>Scan Batch QR Code</Text>
+            <TouchableOpacity
+              style={styles.scannerClose}
+              onPress={() => setShowScanner(false)}
+            >
+              <Text style={styles.scannerCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -437,6 +621,83 @@ const styles = StyleSheet.create({
   executeButtonText: {
     fontSize: 17,
     fontWeight: '700',
+    color: '#ffffff',
+  },
+  scannedList: {
+    marginBottom: 16,
+  },
+  scannedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  scannedIcon: {
+    fontSize: 18,
+    color: '#16a34a',
+    marginRight: 8,
+    fontWeight: '700',
+  },
+  scannedText: {
+    fontSize: 15,
+    color: '#166534',
+    fontWeight: '600',
+  },
+  scanButton: {
+    backgroundColor: '#3d9448',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  scanButtonIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  scanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  scanProgress: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  scanProgressText: {
+    fontSize: 14,
+    color: '#78716c',
+  },
+  scannerContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+  },
+  scannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    alignItems: 'center',
+  },
+  scannerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 16,
+  },
+  scannerClose: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  scannerCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ffffff',
   },
 });

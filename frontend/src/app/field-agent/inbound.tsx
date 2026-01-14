@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
 
-const CROP_TYPES = ['MAIZE', 'RICE', 'BEANS', 'SORGHUM', 'MILLET', 'WHEAT', 'CASSAVA', 'GROUNDNUTS', 'SUNFLOWER', 'OTHER'];
+const CROP_TYPES = ['MAIZE', 'RED MAIZE', 'WHITE MAIZE', 'RICE', 'BEANS', 'SORGHUM', 'MILLET', 'WHEAT', 'CASSAVA', 'GROUNDNUTS', 'SUNFLOWER', 'OTHER'];
 
 export default function InboundScreen() {
   const router = useRouter();

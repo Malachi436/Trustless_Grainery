@@ -30,14 +30,22 @@ async function seed() {
     );
 
     await db.query(
-      `INSERT INTO warehouses (id, name, location, status, owner_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [warehouseId, 'Main Warehouse', 'Accra, Ghana', WarehouseStatus.ACTIVE, ownerUserId]
+      `INSERT INTO warehouses (id, name, location, status, owner_id, warehouse_code)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [warehouseId, 'Main Warehouse', 'Accra, Ghana', WarehouseStatus.ACTIVE, ownerUserId, 'MNW']
     );
 
     // Update owner with warehouse_id
     await db.query(
       'UPDATE users SET warehouse_id = $1 WHERE id = $2',
+      [warehouseId, ownerUserId]
+    );
+
+    // Add owner to warehouse_owners table
+    await db.query(
+      `INSERT INTO warehouse_owners (warehouse_id, user_id, role_type)
+       VALUES ($1, $2, 'OWNER')
+       ON CONFLICT (warehouse_id, user_id) DO NOTHING`,
       [warehouseId, ownerUserId]
     );
 

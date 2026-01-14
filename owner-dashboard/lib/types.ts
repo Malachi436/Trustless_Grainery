@@ -97,6 +97,10 @@ export interface OutstandingCredit {
   days_outstanding: number | null;
   approved_by_name: string | null;
   executed_by_name: string | null;
+  total_paid?: number | null;
+  remaining_balance?: number | null;
+  last_payment_date?: string | null;
+  last_payment_by_name?: string | null;
 }
 
 // Buyer Breakdown

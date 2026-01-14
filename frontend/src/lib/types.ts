@@ -128,6 +128,7 @@ export interface NetworkState {
 // v2 Models
 export interface Batch {
   id: string;
+  batchCode: string;
   warehouseId: string;
   cropType: CropType;
   sourceType: BatchSourceType;

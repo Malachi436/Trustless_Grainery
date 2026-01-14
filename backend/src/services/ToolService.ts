@@ -25,7 +25,7 @@ export class ToolService {
     warehouseId: string,
     toolType: string,
     quantity: number,
-    createdBy: string
+    _createdBy: string
   ): Promise<Tool[]> {
     const client = await db.getClient();
     

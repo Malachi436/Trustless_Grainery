@@ -123,26 +123,36 @@ export default function ApprovalDetailModal({
       return;
     }
 
+    // Debug logging
+    console.log('🔍 Approval Debug:');
+    console.log('Selected Batches:', selectedBatches);
+    console.log('Total Allocated:', totalAllocated);
+    console.log('Will send batchBreakdown:', selectedBatches.length > 0);
+
     try {
       setIsLoading(true);
+      const payload = {
+        notes: notes || undefined,
+        batchBreakdown: selectedBatches.length > 0 ? selectedBatches.map(b => ({
+          batch_id: b.batchId,
+          bags: b.bags,
+        })) : undefined,
+        buyerType,
+        buyerNameFinal: buyerName,
+        buyerPhoneFinal: buyerPhone,
+        paymentMethod,
+        pricePerBag: parseFloat(pricePerBag),
+      };
+      
+      console.log('📤 Sending approval payload:', JSON.stringify(payload, null, 2));
+      
       const response = await fetch(API_ENDPOINTS.OWNER_APPROVE(request.request_id), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          notes: notes || undefined,
-          batchBreakdown: selectedBatches.length > 0 ? selectedBatches.map(b => ({
-            batch_id: b.batchId,
-            bags: b.bags,
-          })) : undefined,
-          buyerType,
-          buyerNameFinal: buyerName,
-          buyerPhoneFinal: buyerPhone,
-          paymentMethod,
-          pricePerBag: parseFloat(pricePerBag),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -371,7 +381,14 @@ function BatchSelector({ batch, allocated, onSelect }: {
   return (
     <View style={styles.batchCard}>
       <View style={styles.batchInfo}>
-        <Text style={styles.batchTag}>Batch #{batch.id.slice(0, 8)}</Text>
+        <Text style={styles.batchCode}>{batch.batchCode}</Text>
+        <Text style={styles.batchDate}>
+          {new Date(batch.createdAt).toLocaleDateString('en-GB', { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric' 
+          })}
+        </Text>
         <Text style={styles.batchSource}>{batch.sourceType}</Text>
         <Text style={styles.batchAvailable}>{batch.remainingBags} bags available</Text>
       </View>
@@ -472,6 +489,18 @@ const styles = StyleSheet.create({
   },
   batchInfo: {
     flex: 1,
+  },
+  batchCode: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1c1917',
+    marginBottom: 4,
+  },
+  batchDate: {
+    fontSize: 13,
+    color: '#3d9448',
+    fontWeight: '600',
+    marginBottom: 4,
   },
   batchTag: {
     fontSize: 15,

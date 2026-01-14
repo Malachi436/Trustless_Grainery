@@ -5,7 +5,6 @@ import batchService from './BatchService';
 import { EventType, RecoveryStatus, BatchSourceType, CropType } from '../types/enums';
 import { RecoveryInboundRecordedPayload, AggregatedInboundRecordedPayload } from '../types/models';
 import { AppError } from '../middleware/errorHandler';
-import { v4 as uuidv4 } from 'uuid';
 
 /**
  * OutgrowerService
@@ -73,14 +72,13 @@ export class OutgrowerService {
       );
 
       // Update recovery tracking
-      const recoveryTrackingId = uuidv4();
       await client.query(
         `UPDATE recovery_tracking 
          SET received_bags = received_bags + $1, 
-             recovery_status = $2,
+             recovery_status = $2::recovery_status,
              batch_id = $3,
              updated_at = CURRENT_TIMESTAMP,
-             completed_at = CASE WHEN $2 = $4 THEN CURRENT_TIMESTAMP ELSE completed_at END
+             completed_at = CASE WHEN $2::recovery_status = $4::recovery_status THEN CURRENT_TIMESTAMP ELSE completed_at END
          WHERE service_record_id = $5`,
         [bagsReceived, recoveryStatus, batch.id, RecoveryStatus.COMPLETED, serviceRecordId]
       );
@@ -88,7 +86,7 @@ export class OutgrowerService {
       // Update service record status if needed
       await client.query(
         `UPDATE service_records 
-         SET recovery_status = $1
+         SET recovery_status = $1::recovery_status
          WHERE id = $2`,
         [recoveryStatus, serviceRecordId]
       );

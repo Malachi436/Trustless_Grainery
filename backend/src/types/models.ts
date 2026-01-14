@@ -237,6 +237,9 @@ export interface Batch {
   remaining_bags: number; // Derived from events
   created_at: Date;
   created_by: string;
+  batch_code: string; // e.g., "MAIZE-20260112-WH01-001"
+  qr_code_data: string | null; // Base64 data URL
+  warehouse_code: string | null;
 }
 
 /**
@@ -272,6 +275,15 @@ export interface ServiceRecordedPayload {
   farmer_id: string; // UUID
   field_agent_id: string; // UUID
   service_types: ServiceType[];
+  services?: Array<{ // NEW: Per-service structured data
+    service_type: ServiceType;
+    land_size_acres?: number;
+    fertilizer_type?: string;
+    fertilizer_quantity_kg?: number;
+    pesticide_type?: string;
+    pesticide_quantity_liters?: number;
+    notes?: string;
+  }>;
   land_services?: Array<{
     service_type: ServiceType;
     date: string; // ISO date
@@ -284,6 +296,7 @@ export interface ServiceRecordedPayload {
   pesticide_quantity_liters?: number;
   expected_bags: number;
   expected_recovery_date?: string; // ISO date - when recovery is expected
+  notes?: string; // Required when OTHER service type is selected
 }
 
 /**

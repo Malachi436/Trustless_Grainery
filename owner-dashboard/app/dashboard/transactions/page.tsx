@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '@/lib/api-config';
 import type { Transaction } from '@/lib/types';
+import Image from 'next/image';
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     crop: '',
     buyerType: '',
@@ -77,12 +79,20 @@ export default function TransactionsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Transaction History</h1>
               <p className="text-sm text-gray-600 mt-1">Authoritative ledger of all transactions</p>
             </div>
-            <button
-              onClick={() => window.location.href = '/dashboard'}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchTransactions}
+                className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+              >
+                🔄 Refresh
+              </button>
+              <button
+                onClick={() => window.location.href = '/dashboard'}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -213,7 +223,7 @@ export default function TransactionsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {tx.total_amount ? `GH₵${tx.total_amount.toLocaleString()}` : 'N/A'}
+                          {tx.total_amount ? `GH₵${parseFloat(tx.total_amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(tx.current_status)}`}>
@@ -245,7 +255,7 @@ export default function TransactionsPage() {
                                 <div>
                                   <span className="text-gray-500">Price Per Bag:</span>
                                   <div className="font-medium">
-                                    {tx.price_per_bag ? `GH₵${tx.price_per_bag.toLocaleString()}` : 'N/A'}
+                                    {tx.price_per_bag ? `GH₵${parseFloat(tx.price_per_bag.toString()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                                   </div>
                                 </div>
                               </div>
@@ -253,6 +263,17 @@ export default function TransactionsPage() {
                                 <div className="text-sm">
                                   <span className="text-gray-500">Buyer Contact:</span>
                                   <div className="font-medium">{tx.buyer_phone}</div>
+                                </div>
+                              )}
+                              {/* View Photo Button */}
+                              {(tx as any).photo_url && (
+                                <div className="mt-4">
+                                  <button
+                                    onClick={() => setSelectedPhoto((tx as any).photo_url)}
+                                    className="px-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                                  >
+                                    📷 View Transaction Photo
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -267,6 +288,37 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {/* Photo Modal */}
+      {selectedPhoto && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div 
+            className="relative max-w-4xl w-full bg-white rounded-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Transaction Photo</h3>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="px-3 py-1 text-gray-600 hover:text-gray-900 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <img
+                src={selectedPhoto}
+                alt="Transaction Photo"
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

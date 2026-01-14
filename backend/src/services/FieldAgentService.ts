@@ -2,7 +2,7 @@ import db from '../config/database';
 import logger from '../config/logger';
 import eventService from './EventService';
 import { EventType, FieldAgentStatus, FarmerStatus, RecoveryStatus, ServiceType } from '../types/enums';
-import { ServiceRecordedPayload, HarvestCompletedPayload, ExpectedRecoveryDateUpdatedPayload } from '../types/models';
+import { ServiceRecordedPayload, ExpectedRecoveryDateUpdatedPayload } from '../types/models';
 import { AppError } from '../middleware/errorHandler';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -132,7 +132,7 @@ export class FieldAgentService {
   /**
    * Record services provided to a farmer
    * Creates SERVICE_RECORDED event
-   * Now includes expected_recovery_date
+   * Now includes expected_recovery_date and notes
    */
   async recordService(
     farmerId: string,
@@ -147,7 +147,8 @@ export class FieldAgentService {
     fertilizerQuantityKg?: number,
     pesticideType?: string,
     pesticideQuantityLiters?: number,
-    createdBy?: string
+    createdBy?: string,
+    notes?: string // NEW: Notes for OTHER service type
   ): Promise<any> {
     const client = await db.getClient();
     
@@ -170,8 +171,8 @@ export class FieldAgentService {
         `INSERT INTO service_records 
          (id, farmer_id, field_agent_id, warehouse_id, service_types, land_services, 
           land_size_acres, fertilizer_type, fertilizer_quantity_kg, pesticide_type, 
-          pesticide_quantity_liters, expected_bags, expected_recovery_date, original_expected_date, recovery_status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)`,
+          pesticide_quantity_liters, expected_bags, expected_recovery_date, original_expected_date, recovery_status, notes, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)`,
         [
           serviceRecordId, farmerId, fieldAgentId, warehouseId,
           serviceTypes, landServices ? JSON.stringify(landServices) : null,
@@ -181,7 +182,8 @@ export class FieldAgentService {
           expectedBags,
           expectedRecoveryDate ? new Date(expectedRecoveryDate) : null,
           expectedRecoveryDate ? new Date(expectedRecoveryDate) : null, // Save original
-          RecoveryStatus.PENDING
+          RecoveryStatus.PENDING,
+          notes || null
         ]
       );
 
@@ -207,6 +209,7 @@ export class FieldAgentService {
         pesticide_quantity_liters: pesticideQuantityLiters,
         expected_bags: expectedBags,
         expected_recovery_date: expectedRecoveryDate,
+        notes: notes,
       };
 
       const event = await eventService.createEvent(
@@ -230,6 +233,101 @@ export class FieldAgentService {
   }
 
   /**
+   * Record services with per-service structured data
+   * NEW: Accepts array of service objects, each with its own fields
+   */
+  async recordServiceStructured(
+    farmerId: string,
+    fieldAgentId: string,
+    warehouseId: string,
+    services: Array<{
+      service_type: ServiceType;
+      land_size_acres?: number;
+      fertilizer_type?: string;
+      fertilizer_quantity_kg?: number;
+      pesticide_type?: string;
+      pesticide_quantity_liters?: number;
+      notes?: string;
+    }>,
+    expectedBags: number,
+    expectedRecoveryDate: string | undefined,
+    maizeColor?: string, // NEW: Maize color (RED or WHITE)
+    createdBy?: string
+  ): Promise<any> {
+    const client = await db.getClient();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Verify farmer belongs to field agent + warehouse
+      const farmerCheck = await client.query(
+        `SELECT id FROM farmers WHERE id = $1 AND field_agent_id = $2 AND warehouse_id = $3 AND status = $4`,
+        [farmerId, fieldAgentId, warehouseId, FarmerStatus.ACTIVE]
+      );
+      if (farmerCheck.rows.length === 0) {
+        throw new AppError('Farmer not found or not assigned to this field agent', 404);
+      }
+
+      // Create service record with structured services
+      const serviceRecordId = uuidv4();
+      
+      await client.query(
+        `INSERT INTO service_records 
+         (id, farmer_id, field_agent_id, warehouse_id, service_types, services_data,
+          expected_bags, expected_recovery_date, original_expected_date, maize_color, recovery_status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)`,
+        [
+          serviceRecordId, farmerId, fieldAgentId, warehouseId,
+          services.map(s => s.service_type), // Legacy array for backward compatibility
+          JSON.stringify(services), // NEW: Structured service data
+          expectedBags,
+          expectedRecoveryDate ? new Date(expectedRecoveryDate) : null,
+          expectedRecoveryDate ? new Date(expectedRecoveryDate) : null, // Save original
+          maizeColor || null, // NEW: Maize color
+          RecoveryStatus.PENDING,
+        ]
+      );
+
+      // Create recovery tracking record
+      const recoveryTrackingId = uuidv4();
+      await client.query(
+        `INSERT INTO recovery_tracking (id, service_record_id, farmer_id, warehouse_id, expected_bags, recovery_status)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [recoveryTrackingId, serviceRecordId, farmerId, warehouseId, expectedBags, RecoveryStatus.PENDING]
+      );
+
+      // Create SERVICE_RECORDED event with new structure
+      const servicePayload: ServiceRecordedPayload = {
+        service_record_id: serviceRecordId,
+        farmer_id: farmerId,
+        field_agent_id: fieldAgentId,
+        services: services, // NEW: Structured services
+        service_types: services.map(s => s.service_type), // Legacy field
+        expected_bags: expectedBags,
+        expected_recovery_date: expectedRecoveryDate,
+      };
+
+      const event = await eventService.createEvent(
+        warehouseId,
+        EventType.SERVICE_RECORDED,
+        createdBy || fieldAgentId,
+        servicePayload,
+        client
+      );
+
+      await client.query('COMMIT');
+
+      logger.info(`Structured service recorded for farmer ${farmerId}: ${serviceRecordId}`);
+      return { serviceRecordId, recoveryTrackingId, eventId: event.event_id };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * DEPRECATED: Mark harvest as completed (Field Agent)
    * This method is deprecated per the authoritative specification.
    * The system no longer uses a "mark harvest complete" action.
@@ -238,11 +336,11 @@ export class FieldAgentService {
    * @deprecated Use updateExpectedRecoveryDate instead
    */
   async markHarvestComplete(
-    serviceRecordId: string,
-    farmerId: string,
-    fieldAgentId: string,
-    warehouseId: string,
-    notes?: string
+    _serviceRecordId: string,
+    _farmerId: string,
+    _fieldAgentId: string,
+    _warehouseId: string,
+    _notes?: string
   ): Promise<any> {
     logger.warn('DEPRECATED: markHarvestComplete called - this method should not be used');
     throw new AppError(

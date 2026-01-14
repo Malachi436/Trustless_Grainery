@@ -66,6 +66,10 @@ export enum CropType {
   SOYBEANS = 'Soybeans',
   WHEAT = 'Wheat',
   MILLET = 'Millet',
+  CASSAVA = 'Cassava',
+  GROUNDNUTS = 'Groundnuts',
+  SUNFLOWER = 'Sunflower',
+  OTHER = 'Other',
 }
 
 /**
@@ -150,6 +154,8 @@ export enum FarmerStatus {
 export enum ServiceType {
   LAND_CLEARING = 'LAND_CLEARING',
   PLOWING = 'PLOWING',
+  HARROWING = 'HARROWING',
+  RIDGING = 'RIDGING',
   PLANTING = 'PLANTING',
   WEEDING = 'WEEDING',
   FERTILIZING = 'FERTILIZING',
@@ -158,4 +164,12 @@ export enum ServiceType {
   THRESHING = 'THRESHING',
   DRYING = 'DRYING',
   OTHER = 'OTHER',
+}
+
+/**
+ * Maize Color - For maize crop specification
+ */
+export enum MaizeColor {
+  RED = 'RED',
+  WHITE = 'WHITE',
 }

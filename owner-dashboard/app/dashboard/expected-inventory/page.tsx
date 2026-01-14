@@ -10,6 +10,7 @@ interface ExpectedInventoryItem {
   farmer_id: string;
   field_agent_name: string;
   expected_bags: number;
+  expected_recovery_date?: string;
   received_bags: number;
   recovery_status: string;
   service_date: string;
@@ -202,12 +203,13 @@ export default function ExpectedInventoryPage() {
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Progress</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Status</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Service Date</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Expected Recovery</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                       No expected inventory found for the selected filter
                     </td>
                   </tr>
@@ -252,6 +254,12 @@ export default function ExpectedInventoryPage() {
                         </td>
                         <td className="px-6 py-4 text-center text-sm text-gray-600">
                           {new Date(item.service_date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-center text-sm text-gray-600">
+                          {item.expected_recovery_date 
+                            ? new Date(item.expected_recovery_date).toLocaleDateString()
+                            : <span className="text-gray-400">Not set</span>
+                          }
                         </td>
                       </tr>
                     );

@@ -4,6 +4,7 @@ import fieldAgentService from '../services/FieldAgentService';
 import outgrowerService from '../services/OutgrowerService';
 import { ServiceType, CropType } from '../types/enums';
 import { AppError } from '../middleware/errorHandler';
+import db from '../config/database';
 
 /**
  * Field Agent Controller
@@ -27,12 +28,11 @@ export const createFarmerValidation = [
 
 export const recordServiceValidation = [
   param('farmerId').isUUID().withMessage('Invalid farmer ID'),
-  body('serviceTypes').isArray().withMessage('Service types must be array'),
+  body('services')
+    .isArray({ min: 1 })
+    .withMessage('At least one service must be provided'),
   body('expectedBags').isInt({ min: 1 }).withMessage('Expected bags must be positive integer'),
   body('expectedRecoveryDate').optional().isISO8601().withMessage('Expected recovery date must be valid ISO date'),
-  body('landSizeAcres').optional().isNumeric(),
-  body('fertilizerQuantityKg').optional().isNumeric(),
-  body('pesticideQuantityLiters').optional().isNumeric(),
 ];
 
 export const recordRecoveryValidation = [
@@ -123,6 +123,7 @@ export const listFarmers = async (req: Request, res: Response): Promise<void> =>
 /**
  * POST /field-agent/farmers/:farmerId/services
  * Record services provided to a farmer
+ * Now accepts structured per-service data
  */
 export const recordService = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -133,15 +134,10 @@ export const recordService = async (req: Request, res: Response): Promise<void> 
 
     const { farmerId } = req.params;
     const {
-      serviceTypes,
-      landServices,
-      landSizeAcres,
-      fertilizerType,
-      fertilizerQuantityKg,
-      pesticideType,
-      pesticideQuantityLiters,
+      services,
       expectedBags,
       expectedRecoveryDate,
+      maizeColor, // NEW: Maize color (RED or WHITE)
     } = req.body;
 
     const fieldAgentId = req.user?.user_id;
@@ -151,19 +147,61 @@ export const recordService = async (req: Request, res: Response): Promise<void> 
       throw new AppError('Field agent or warehouse not identified', 400);
     }
 
-    const result = await fieldAgentService.recordService(
+    // Validate each service has required fields
+    const LAND_BASED_SERVICES = [
+      ServiceType.LAND_CLEARING,
+      ServiceType.PLOWING,
+      ServiceType.HARROWING, // NEW
+      ServiceType.RIDGING, // NEW
+      ServiceType.PLANTING,
+      ServiceType.WEEDING,
+      ServiceType.HARVESTING,
+      ServiceType.THRESHING,
+      ServiceType.DRYING,
+    ];
+
+    for (const service of services) {
+      const { service_type } = service;
+      
+      if (LAND_BASED_SERVICES.includes(service_type)) {
+        if (!service.land_size_acres || service.land_size_acres <= 0) {
+          throw new AppError(`${service_type}: land_size_acres is required and must be positive`, 400);
+        }
+      }
+      
+      if (service_type === ServiceType.FERTILIZING) {
+        if (!service.fertilizer_type || !service.fertilizer_quantity_kg) {
+          throw new AppError(`${service_type}: fertilizer_type and fertilizer_quantity_kg are required`, 400);
+        }
+        if (service.fertilizer_quantity_kg <= 0) {
+          throw new AppError(`${service_type}: fertilizer_quantity_kg must be positive`, 400);
+        }
+      }
+      
+      if (service_type === ServiceType.PEST_CONTROL) {
+        if (!service.pesticide_type || !service.pesticide_quantity_liters) {
+          throw new AppError(`${service_type}: pesticide_type and pesticide_quantity_liters are required`, 400);
+        }
+        if (service.pesticide_quantity_liters <= 0) {
+          throw new AppError(`${service_type}: pesticide_quantity_liters must be positive`, 400);
+        }
+      }
+      
+      if (service_type === ServiceType.OTHER) {
+        if (!service.notes || service.notes.trim() === '') {
+          throw new AppError(`${service_type}: notes are required`, 400);
+        }
+      }
+    }
+
+    const result = await fieldAgentService.recordServiceStructured(
       farmerId,
       fieldAgentId,
       warehouseId,
-      serviceTypes as ServiceType[],
+      services,
       expectedBags,
       expectedRecoveryDate,
-      landServices,
-      landSizeAcres,
-      fertilizerType,
-      fertilizerQuantityKg,
-      pesticideType,
-      pesticideQuantityLiters,
+      maizeColor, // NEW: Maize color
       fieldAgentId
     );
 
@@ -317,12 +355,29 @@ export const recordRecoveryInbound = async (req: Request, res: Response): Promis
       throw new AppError('Validation failed', 400);
     }
 
-    const { serviceRecordId, farmerId, crop, bagsReceived, notes } = req.body;
+    let { serviceRecordId, farmerId, crop, bagsReceived, notes } = req.body;
     const fieldAgentId = req.user?.user_id;
     const warehouseId = req.user?.warehouse_id;
 
     if (!fieldAgentId || !warehouseId) {
       throw new AppError('Field agent or warehouse not identified', 400);
+    }
+
+    // If no serviceRecordId provided, find the most recent pending service record for this farmer
+    if (!serviceRecordId && farmerId) {
+      const serviceRecordResult = await db.query(
+        `SELECT id FROM service_records 
+         WHERE farmer_id = $1 AND warehouse_id = $2 AND recovery_status IN ('PENDING', 'PARTIAL')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [farmerId, warehouseId]
+      );
+      
+      if (serviceRecordResult.rows.length === 0) {
+        throw new AppError('No pending service records found for this farmer', 404);
+      }
+      
+      serviceRecordId = serviceRecordResult.rows[0].id;
     }
 
     const result = await outgrowerService.recordRecoveryInbound(

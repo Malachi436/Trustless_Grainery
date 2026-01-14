@@ -99,7 +99,7 @@ export default function FieldAgentHomeScreen() {
           
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => router.push('/field-agent/farmers/new')}
+            onPress={() => router.push('/field-agent/farmers')}
           >
             <Text style={styles.actionIcon}>➕</Text>
             <View style={styles.actionContent}>

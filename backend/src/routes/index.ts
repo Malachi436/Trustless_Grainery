@@ -5,6 +5,7 @@ import attendantRoutes from './attendantRoutes';
 import ownerRoutes from './ownerRoutes';
 import ownerAnalyticsRoutes from './ownerAnalyticsRoutes';
 import fieldAgentRoutes from './fieldAgentRoutes';
+import batchRoutes from './batchRoutes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/attendant', attendantRoutes);
 router.use('/owner', ownerRoutes);
 router.use('/owner/analytics', ownerAnalyticsRoutes);
 router.use('/field-agent', fieldAgentRoutes);
+router.use('/api', batchRoutes); // Batch routes for both owner and attendant
 
 export default router;

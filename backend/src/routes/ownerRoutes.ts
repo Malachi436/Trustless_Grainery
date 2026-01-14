@@ -53,6 +53,12 @@ router.post(
 router.get('/audit', ownerController.getAuditTimeline);
 
 /**
+ * GET /owner/genesis-status
+ * Get genesis status (for confirmation screen)
+ */
+router.get('/genesis-status', ownerController.getGenesisStatus);
+
+/**
  * POST /owner/genesis
  * Confirm genesis inventory (one-time activation)
  */
@@ -70,6 +76,18 @@ router.post(
 router.get('/batches', ownerController.getBatches);
 
 /**
+ * GET /owner/batches/verify/:batchCode
+ * Verify QR code / Get batch by code
+ */
+router.get('/batches/verify/:batchCode', ownerController.verifyBatchQR);
+
+/**
+ * GET /owner/requests/:requestId/allocations
+ * Get batch allocations for a request
+ */
+router.get('/requests/:requestId/allocations', ownerController.getRequestBatchAllocations);
+
+/**
  * GET /owner/tools
  * Get all tools for warehouse
  * Query params: ?status=AVAILABLE
@@ -84,6 +102,44 @@ router.post(
   '/tools/:toolId/assign',
   ownerController.assignToolValidation,
   ownerController.assignTool
+);
+
+/**
+ * POST /owner/staff
+ * Create warehouse staff (Attendants/Field Agents)
+ */
+router.post(
+  '/staff',
+  ownerController.createStaffValidation,
+  ownerController.createStaff
+);
+
+/**
+ * GET /owner/staff
+ * Get warehouse staff
+ */
+router.get('/staff', ownerController.getStaff);
+
+/**
+ * GET /owner/upcoming-recoveries
+ * Get upcoming recoveries (next 4 weeks)
+ */
+router.get('/upcoming-recoveries', ownerController.getUpcomingRecoveries);
+
+/**
+ * GET /owner/date-change-notifications
+ * Get recovery date change notifications (last 30 days)
+ */
+router.get('/date-change-notifications', ownerController.getDateChangeNotifications);
+
+/**
+ * POST /owner/credit/:transactionId/record-payment
+ * Record payment for credit transaction (partial or full)
+ */
+router.post(
+  '/credit/:transactionId/record-payment',
+  ownerController.recordCreditPaymentValidation,
+  ownerController.recordCreditPayment
 );
 
 export default router;

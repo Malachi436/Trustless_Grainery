@@ -33,8 +33,8 @@ export default function GenesisConfirmationScreen() {
 
   const fetchGenesisInventory = async () => {
     try {
-      // Fetch the dashboard which includes stock/genesis info
-      const response = await fetch(API_ENDPOINTS.OWNER_DASHBOARD, {
+      // Fetch genesis status (events) instead of stock
+      const response = await fetch(API_ENDPOINTS.OWNER_GENESIS_STATUS, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -42,11 +42,11 @@ export default function GenesisConfirmationScreen() {
 
       const data = await response.json();
       
-      if (data.success && data.data.stock) {
-        // Convert stock to genesis inventory format
-        const inventory = data.data.stock.map((item: any) => ({
-          crop: item.crop, // Backend returns 'crop', not 'cropType'
-          quantity: item.bag_count, // Backend returns 'bag_count', not 'bagCount'
+      if (data.success && data.data.crops) {
+        // Convert genesis crops to inventory format
+        const inventory = data.data.crops.map((item: any) => ({
+          crop: item.crop,
+          quantity: item.quantity,
         }));
         setGenesisInventory(inventory);
       }

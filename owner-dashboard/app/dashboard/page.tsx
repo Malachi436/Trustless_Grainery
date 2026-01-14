@@ -318,15 +318,63 @@ export default function OwnerDashboard() {
           >
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-cyan-100 rounded-xl">
-                <span className="text-2xl">📊</span>
+                <span className="text-2xl">📈</span>
               </div>
               <span className="text-xs text-gray-500 uppercase tracking-wide">Recovery Analytics</span>
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-2">
-              Recovery Progress
+              Performance
             </div>
             <p className="text-sm text-gray-600">
-              Analyze recovery status and completion rates
+              Track recovery rates and field performance
+            </p>
+          </div>
+
+          {/* Upcoming Recoveries (NEW) */}
+          <div 
+            className="rounded-2xl p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(16, 185, 129, 0.2)'
+            }}
+            onClick={() => window.location.href = '/dashboard/upcoming-recoveries'}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-green-100 rounded-xl">
+                <span className="text-2xl">📅</span>
+              </div>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Upcoming Recoveries</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-2">
+              Next 4 Weeks
+            </div>
+            <p className="text-sm text-gray-600">
+              Track upcoming recoveries and date changes
+            </p>
+          </div>
+
+          {/* Staff Management */}
+          <div 
+            className="rounded-2xl p-6 cursor-pointer hover:shadow-lg transition-shadow"
+            style={{
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(139, 92, 246, 0.2)'
+            }}
+            onClick={() => window.location.href = '/dashboard/staff'}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <span className="text-2xl">👥</span>
+              </div>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Staff Management</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 mb-2">
+              Manage Team
+            </div>
+            <p className="text-sm text-gray-600">
+              Add attendants and field agents
             </p>
           </div>
         </div>

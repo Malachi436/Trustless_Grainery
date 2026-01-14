@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
 
-const CROP_TYPES = ['Maize', 'Rice', 'Soybeans', 'Wheat', 'Millet'];
+const CROP_TYPES = ['MAIZE', 'RED MAIZE', 'WHITE MAIZE', 'RICE', 'BEANS', 'SORGHUM', 'MILLET', 'WHEAT', 'CASSAVA', 'GROUNDNUTS', 'SUNFLOWER', 'OTHER'];
 
 export default function RequestDispatchScreen() {
   const router = useRouter();
@@ -38,6 +38,24 @@ export default function RequestDispatchScreen() {
       return;
     }
 
+    // Map cropType to backend format (capitalized: Maize, Rice, etc.)
+    const cropTypeMap: Record<string, string> = {
+      'maize': 'Maize',
+      'red maize': 'Maize',
+      'white maize': 'Maize',
+      'rice': 'Rice',
+      'soybeans': 'Soybeans',
+      'beans': 'Soybeans',
+      'wheat': 'Wheat',
+      'millet': 'Millet',
+      'sorghum': 'Millet',
+      'cassava': 'Cassava',
+      'groundnuts': 'Groundnuts',
+      'sunflower': 'Sunflower',
+      'other': 'Other',
+    };
+    const backendCropType = cropTypeMap[cropType.toLowerCase()] || 'Maize';
+
     Alert.alert(
       'Submit Request',
       `Send dispatch request to owner?
@@ -52,6 +70,14 @@ Quantity: ${quantity} bags${notes ? `\nNote: ${notes}` : ''}`,
             try {
               setIsSubmitting(true);
               
+              console.log('Sending request to:', API_ENDPOINTS.ATTENDANT_REQUEST_DISPATCH);
+              console.log('Request body:', {
+                cropType: backendCropType,
+                bags: parseInt(quantity),
+                recipientName: 'TBD',
+                notes: notes || undefined,
+              });
+              
               const response = await fetch(API_ENDPOINTS.ATTENDANT_REQUEST_DISPATCH, {
                 method: 'POST',
                 headers: {
@@ -59,14 +85,16 @@ Quantity: ${quantity} bags${notes ? `\nNote: ${notes}` : ''}`,
                   'Authorization': `Bearer ${accessToken}`,
                 },
                 body: JSON.stringify({
-                  cropType,
+                  cropType: backendCropType,
                   bags: parseInt(quantity),
-                  recipientName: 'TBD',  // Placeholder - owner will provide
+                  recipientName: 'TBD',
                   notes: notes || undefined,
                 }),
               });
 
+              console.log('Response status:', response.status);
               const data = await response.json();
+              console.log('Response data:', data);
 
               if (data.success) {
                 Alert.alert(

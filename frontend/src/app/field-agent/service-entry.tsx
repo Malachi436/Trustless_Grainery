@@ -9,15 +9,19 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { API_ENDPOINTS } from '@/lib/api-config';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const SERVICE_TYPES = [
   'LAND_CLEARING',
   'PLOWING',
+  'HARROWING',
+  'RIDGING',
   'PLANTING',
   'WEEDING',
   'FERTILIZING',
@@ -27,6 +31,16 @@ const SERVICE_TYPES = [
   'DRYING',
   'OTHER',
 ];
+
+interface ServiceDetail {
+  service_type: string;
+  land_size_acres?: number;
+  fertilizer_type?: string;
+  fertilizer_quantity_kg?: number;
+  pesticide_type?: string;
+  pesticide_quantity_liters?: number;
+  notes?: string;
+}
 
 export default function ServiceEntryScreen() {
   const router = useRouter();
@@ -38,13 +52,10 @@ export default function ServiceEntryScreen() {
   // Form state
   const [selectedFarmer, setSelectedFarmer] = useState<any>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [expectedBags, setExpectedBags] = useState('');
-  const [landSize, setLandSize] = useState('');
-  const [fertilizerType, setFertilizerType] = useState('');
-  const [fertilizerQty, setFertilizerQty] = useState('');
-  const [pesticideType, setPesticideType] = useState('');
-  const [pesticideQty, setPesticideQty] = useState('');
-  const [notes, setNotes] = useState('');
+  const [expectedRecoveryDate, setExpectedRecoveryDate] = useState<Date | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const [farmerModalVisible, setFarmerModalVisible] = useState(false);
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
@@ -69,18 +80,75 @@ export default function ServiceEntryScreen() {
   };
 
   const toggleService = (service: string) => {
-    setSelectedServices((prev) =>
-      prev.includes(service)
-        ? prev.filter((s) => s !== service)
-        : [...prev, service]
-    );
+    setSelectedServices((prev) => {
+      if (prev.includes(service)) {
+        // Remove service and its details
+        const newDetails = { ...serviceDetails };
+        delete newDetails[service];
+        setServiceDetails(newDetails);
+        return prev.filter((s) => s !== service);
+      } else {
+        // Add service and initialize its details
+        setServiceDetails((prevDetails) => ({
+          ...prevDetails,
+          [service]: { service_type: service },
+        }));
+        return [...prev, service];
+      }
+    });
+  };
+
+  const updateServiceDetail = (service: string, field: string, value: any) => {
+    setServiceDetails((prev) => ({
+      ...prev,
+      [service]: {
+        ...prev[service],
+        [field]: value,
+      },
+    }));
+  };
+
+  const getRequiredFields = (service: string): string[] => {
+    const landBased = ['LAND_CLEARING', 'PLOWING', 'HARROWING', 'RIDGING', 'PLANTING', 'WEEDING', 'HARVESTING', 'THRESHING', 'DRYING'];
+    
+    if (landBased.includes(service)) return ['land_size_acres'];
+    if (service === 'FERTILIZING') return ['fertilizer_type', 'fertilizer_quantity_kg'];
+    if (service === 'PEST_CONTROL') return ['pesticide_type', 'pesticide_quantity_liters'];
+    if (service === 'OTHER') return ['notes'];
+    return [];
   };
 
   const submitService = async () => {
+    // Validation
     if (!selectedFarmer || selectedServices.length === 0 || !expectedBags) {
-      alert('Please fill required fields');
+      alert('Please select farmer, at least one service, and enter expected bags');
       return;
     }
+
+    // Validate each service has required fields
+    for (const service of selectedServices) {
+      const requiredFields = getRequiredFields(service);
+      const detail = serviceDetails[service];
+      
+      for (const field of requiredFields) {
+        if (!detail || !detail[field as keyof ServiceDetail] || detail[field as keyof ServiceDetail] === '') {
+          alert(`${service}: ${field.replace(/_/g, ' ')} is required`);
+          return;
+        }
+        
+        // Validate positive numbers
+        if (field.includes('quantity') || field.includes('size') || field.includes('acres')) {
+          const val = detail[field as keyof ServiceDetail];
+          if (typeof val === 'number' && val <= 0) {
+            alert(`${service}: ${field.replace(/_/g, ' ')} must be positive`);
+            return;
+          }
+        }
+      }
+    }
+
+    // Build services array
+    const services = selectedServices.map(service => serviceDetails[service]);
 
     try {
       setSubmitting(true);
@@ -93,14 +161,9 @@ export default function ServiceEntryScreen() {
             'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            serviceTypes: selectedServices,
+            services,
             expectedBags: parseInt(expectedBags),
-            landSizeAcres: landSize ? parseFloat(landSize) : undefined,
-            fertilizerType: fertilizerType || undefined,
-            fertilizerQuantityKg: fertilizerQty ? parseFloat(fertilizerQty) : undefined,
-            pesticideType: pesticideType || undefined,
-            pesticideQuantityLiters: pesticideQty ? parseFloat(pesticideQty) : undefined,
-            notes: notes || undefined,
+            expectedRecoveryDate: expectedRecoveryDate ? expectedRecoveryDate.toISOString().split('T')[0] : undefined,
           }),
         }
       );
@@ -192,73 +255,136 @@ export default function ServiceEntryScreen() {
           />
         </View>
 
-        {/* Land Details */}
+        {/* Expected Recovery Date */}
         <View style={styles.section}>
-          <Text style={styles.label}>Land Size (Acres)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Optional"
-            keyboardType="decimal-pad"
-            value={landSize}
-            onChangeText={setLandSize}
-            editable={!submitting}
-          />
+          <Text style={styles.label}>Expected Harvest Date</Text>
+          <TouchableOpacity
+            style={styles.datePickerBtn}
+            onPress={() => setShowDatePicker(true)}
+            disabled={submitting}
+          >
+            <Text style={styles.datePickerText}>
+              {expectedRecoveryDate ? expectedRecoveryDate.toLocaleDateString() : 'Select date (optional)'}
+            </Text>
+            <Text style={styles.datePickerIcon}>📅</Text>
+          </TouchableOpacity>
+          {expectedRecoveryDate && (
+            <TouchableOpacity
+              onPress={() => setExpectedRecoveryDate(undefined)}
+              style={styles.clearDateBtn}
+            >
+              <Text style={styles.clearDateText}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Fertilizer */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Fertilizer Type</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="E.g., NPK, Urea"
-            value={fertilizerType}
-            onChangeText={setFertilizerType}
-            editable={!submitting}
+        {showDatePicker && (
+          <DateTimePicker
+            value={expectedRecoveryDate || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (selectedDate) {
+                setExpectedRecoveryDate(selectedDate);
+              }
+            }}
+            minimumDate={new Date()}
           />
-          <Text style={styles.label}>Quantity (kg)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Optional"
-            keyboardType="decimal-pad"
-            value={fertilizerQty}
-            onChangeText={setFertilizerQty}
-            editable={!submitting}
-          />
-        </View>
+        )}
 
-        {/* Pesticide */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Pesticide Type</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="E.g., Pyrethroids"
-            value={pesticideType}
-            onChangeText={setPesticideType}
-            editable={!submitting}
-          />
-          <Text style={styles.label}>Quantity (Liters)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Optional"
-            keyboardType="decimal-pad"
-            value={pesticideQty}
-            onChangeText={setPesticideQty}
-            editable={!submitting}
-          />
-        </View>
-
-        {/* Notes */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Additional notes"
-            value={notes}
-            onChangeText={setNotes}
-            editable={!submitting}
-            multiline
-          />
-        </View>
+        {/* Service Detail Cards - One per selected service */}
+        {selectedServices.map((service) => {
+          const detail = serviceDetails[service] || {};
+          const requiredFields = getRequiredFields(service);
+          const landBased = ['LAND_CLEARING', 'PLOWING', 'HARROWING', 'RIDGING', 'PLANTING', 'WEEDING', 'HARVESTING', 'THRESHING', 'DRYING'];
+          
+          return (
+            <View key={service} style={styles.serviceCard}>
+              <Text style={styles.serviceCardTitle}>{service.replace(/_/g, ' ')}</Text>
+              
+              {landBased.includes(service) && (
+                <View style={styles.cardSection}>
+                  <Text style={styles.cardLabel}>Land Size (Acres) *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter land size"
+                    keyboardType="decimal-pad"
+                    value={detail.land_size_acres?.toString() || ''}
+                    onChangeText={(text) => updateServiceDetail(service, 'land_size_acres', parseFloat(text) || undefined)}
+                    editable={!submitting}
+                  />
+                </View>
+              )}
+              
+              {service === 'FERTILIZING' && (
+                <>
+                  <View style={styles.cardSection}>
+                    <Text style={styles.cardLabel}>Fertilizer Type *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="E.g., NPK, Urea"
+                      value={detail.fertilizer_type || ''}
+                      onChangeText={(text) => updateServiceDetail(service, 'fertilizer_type', text)}
+                      editable={!submitting}
+                    />
+                  </View>
+                  <View style={styles.cardSection}>
+                    <Text style={styles.cardLabel}>Quantity (kg) *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter quantity"
+                      keyboardType="decimal-pad"
+                      value={detail.fertilizer_quantity_kg?.toString() || ''}
+                      onChangeText={(text) => updateServiceDetail(service, 'fertilizer_quantity_kg', parseFloat(text) || undefined)}
+                      editable={!submitting}
+                    />
+                  </View>
+                </>
+              )}
+              
+              {service === 'PEST_CONTROL' && (
+                <>
+                  <View style={styles.cardSection}>
+                    <Text style={styles.cardLabel}>Pesticide Type *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="E.g., Pyrethroids"
+                      value={detail.pesticide_type || ''}
+                      onChangeText={(text) => updateServiceDetail(service, 'pesticide_type', text)}
+                      editable={!submitting}
+                    />
+                  </View>
+                  <View style={styles.cardSection}>
+                    <Text style={styles.cardLabel}>Quantity (Liters) *</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter quantity"
+                      keyboardType="decimal-pad"
+                      value={detail.pesticide_quantity_liters?.toString() || ''}
+                      onChangeText={(text) => updateServiceDetail(service, 'pesticide_quantity_liters', parseFloat(text) || undefined)}
+                      editable={!submitting}
+                    />
+                  </View>
+                </>
+              )}
+              
+              {service === 'OTHER' && (
+                <View style={styles.cardSection}>
+                  <Text style={styles.cardLabel}>Description *</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Describe the service"
+                    value={detail.notes || ''}
+                    onChangeText={(text) => updateServiceDetail(service, 'notes', text)}
+                    editable={!submitting}
+                    multiline
+                  />
+                </View>
+              )}
+            </View>
+          );
+        })}
 
         {/* Submit Button */}
         <TouchableOpacity
@@ -469,6 +595,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  datePickerBtn: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  datePickerText: {
+    fontSize: 14,
+    color: '#1e1e1e',
+  },
+  datePickerIcon: {
+    fontSize: 20,
+  },
+  clearDateBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  clearDateText: {
+    fontSize: 12,
+    color: '#f44336',
+    textDecorationLine: 'underline',
+  },
   modal: {
     flex: 1,
     backgroundColor: '#fff',
@@ -533,5 +686,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  serviceCard: {
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  serviceCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4caf50',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  cardSection: {
+    marginBottom: 8,
+  },
+  cardLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1e1e1e',
+    marginBottom: 6,
   },
 });

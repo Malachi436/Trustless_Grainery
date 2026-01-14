@@ -53,6 +53,37 @@ export class AuthService {
       [userId, name, phone, role, hashedPin, warehouseId]
     );
 
+    // If creating a field agent, also create field_agents record and link to warehouse
+    if (role === UserRole.FIELD_AGENT && warehouseId) {
+      await db.query(
+        `INSERT INTO field_agents (id, name, phone, community, status, created_by)
+         VALUES ($1, $2, $3, 'N/A', 'ACTIVE', $1)
+         ON CONFLICT (id) DO NOTHING`,
+        [userId, name, phone]
+      );
+
+      await db.query(
+        `INSERT INTO warehouse_field_agents (warehouse_id, field_agent_id, assigned_by)
+         VALUES ($1, $2, $2)
+         ON CONFLICT (warehouse_id, field_agent_id) DO NOTHING`,
+        [warehouseId, userId]
+      );
+
+      logger.info('✅ Field agent linked to warehouse', { userId, warehouseId });
+    }
+
+    // Link attendants and field agents to attendant_warehouses table
+    if ((role === UserRole.ATTENDANT || role === UserRole.FIELD_AGENT) && warehouseId) {
+      await db.query(
+        `INSERT INTO attendant_warehouses (attendant_id, warehouse_id)
+         VALUES ($1, $2)
+         ON CONFLICT (attendant_id, warehouse_id) DO NOTHING`,
+        [userId, warehouseId]
+      );
+
+      logger.info('✅ Attendant/Field agent assigned to warehouse', { userId, warehouseId });
+    }
+
     logger.info('✅ User created', { userId, role, phone });
     return this.mapRowToUser(result.rows[0]);
   }

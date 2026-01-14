@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as attendantController from '../controllers/attendantController';
+import * as batchController from '../controllers/batchController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types/enums';
 
@@ -80,6 +81,48 @@ router.post(
   '/requests/:requestId/confirm-payment',
   attendantController.confirmPaymentValidation,
   attendantController.confirmPayment
+);
+
+/**
+ * GET /attendant/farmers-with-recovery
+ * Get list of farmers with outstanding recovery
+ */
+router.get('/farmers-with-recovery', attendantController.getFarmersWithRecovery);
+
+/**
+ * POST /attendant/batch/scan
+ * Scan batch QR code during dispatch execution
+ */
+router.post(
+  '/batch/scan',
+  batchController.scanBatchValidation,
+  batchController.scanBatch
+);
+
+/**
+ * GET /attendant/batch/verify/:batchCode
+ * Verify batch QR code
+ */
+router.get('/batch/verify/:batchCode', batchController.verifyBatch);
+
+/**
+ * POST /attendant/recovery-inbound
+ * Record recovery inbound (linked to service record)
+ */
+router.post(
+  '/recovery-inbound',
+  attendantController.recordRecoveryValidation,
+  attendantController.recordRecoveryInbound
+);
+
+/**
+ * POST /attendant/aggregated-inbound
+ * Record aggregated inbound (independent)
+ */
+router.post(
+  '/aggregated-inbound',
+  attendantController.recordAggregatedValidation,
+  attendantController.recordAggregatedInbound
 );
 
 export default router;

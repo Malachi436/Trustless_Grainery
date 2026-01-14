@@ -22,7 +22,7 @@ import { AppError } from '../middleware/errorHandler';
 export class InboundService {
   /**
    * Log inbound stock (Attendant only)
-   * Extended to optionally create batch
+   * Now AUTOMATICALLY creates batch with QR code
    */
   async logInbound(
     warehouseId: string,
@@ -31,15 +31,13 @@ export class InboundService {
     bagQuantity: number,
     source: string,
     photoUrls: string[],
-    localTimestamp?: string,
-    notes?: string,
-    // v2 batch parameters (optional)
-    createBatch?: boolean,
-    batchSourceType?: BatchSourceType,
+    batchSourceType: BatchSourceType, // NOW REQUIRED
     sourceName?: string,
     sourceLocation?: string,
-    purchasePricePerBag?: number
-  ): Promise<{ event: Event; batchId?: string }> {
+    purchasePricePerBag?: number,
+    localTimestamp?: string,
+    notes?: string
+  ): Promise<{ event: Event; batchId: string; batchCode: string }> {
     // Validate photo evidence
     if (!photoUrls || photoUrls.length === 0) {
       throw new AppError('Photo evidence is mandatory for inbound stock', 400);
@@ -84,41 +82,38 @@ export class InboundService {
       // Update stock projection
       await stockProjectionService.updateProjection(warehouseId, inboundEvent, client);
 
-      let batchId: string | undefined;
+      // ALWAYS create batch with QR code
+      const batch = await batchService.createBatch(
+        warehouseId,
+        crop,
+        bagQuantity,
+        attendantId,
+        batchSourceType,
+        sourceName,
+        sourceLocation || source,
+        purchasePricePerBag
+      );
+      
+      logger.info('✅ Batch created during inbound', {
+        batchId: batch.id,
+        batchCode: batch.batch_code,
+        crop,
+        bagQuantity,
+        sourceType: batchSourceType,
+      });
 
-      // v2: Optionally create batch
-      if (createBatch) {
-        const batch = await batchService.createBatch(
-          warehouseId,
-          crop,
-          bagQuantity,
-          attendantId,
-          batchSourceType || BatchSourceType.OWN_FARM,
-          sourceName,
-          sourceLocation || source,
-          purchasePricePerBag
-        );
-        batchId = batch.id;
-        
-        logger.info('✅ Batch created during inbound', {
-          batchId,
-          crop,
-          bagQuantity,
-          sourceType: batchSourceType,
-        });
-      }
-
-      return { event: inboundEvent, batchId };
+      return { event: inboundEvent, batchId: batch.id, batchCode: batch.batch_code };
     });
 
-    logger.info('✅ Inbound stock logged', {
+    logger.info('✅ Inbound stock logged with batch', {
       warehouseId,
       attendantId,
       crop,
       bagQuantity,
       source,
       eventId: result.event.event_id,
-      batchCreated: !!result.batchId,
+      batchId: result.batchId,
+      batchCode: result.batchCode,
     });
 
     return result;

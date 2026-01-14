@@ -19,9 +19,19 @@ export default function AttendantHomeScreen() {
   const { user, logout, accessToken } = useAuthStore();
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [approvedRequests, setApprovedRequests] = useState<any[]>([]);
 
   useEffect(() => {
     fetchStats();
+    fetchApprovedRequests();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchApprovedRequests();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchStats = async () => {
@@ -43,6 +53,40 @@ export default function AttendantHomeScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchApprovedRequests = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.ATTENDANT_MY_REQUESTS, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Filter only approved requests
+        const approved = data.data.filter((req: any) => req.status === 'APPROVED');
+        setApprovedRequests(approved);
+      }
+    } catch (error) {
+      console.error('Fetch approved requests error:', error);
+    }
+  };
+
+  const getTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now.getTime() - past.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   const handleLogout = () => {
@@ -104,6 +148,30 @@ export default function AttendantHomeScreen() {
           </View>
         </View>
 
+        {/* Current Stock */}
+        <View style={styles.stockContainer}>
+          <Text style={styles.sectionTitle}>Current Stock</Text>
+          {isLoading ? (
+            <View style={styles.stockCard}>
+              <Text style={styles.stockLabel}>Loading...</Text>
+            </View>
+          ) : stats?.stock && stats.stock.length > 0 ? (
+            <View style={styles.stockGrid}>
+              {stats.stock.map((item: any, index: number) => (
+                <View key={index} style={styles.stockCard}>
+                  <Text style={styles.stockCrop}>{item.crop}</Text>
+                  <Text style={styles.stockQuantity}>{item.bag_count || item.bagCount || 0}</Text>
+                  <Text style={styles.stockLabel}>bags</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.stockCard}>
+              <Text style={styles.stockLabel}>No stock data</Text>
+            </View>
+          )}
+        </View>
+
         {/* Main Actions */}
         <View style={styles.actionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -141,49 +209,83 @@ export default function AttendantHomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Pending Approvals - NEW SECTION */}
+        {approvedRequests.length > 0 && (
+          <View style={styles.approvalsContainer}>
+            <View style={styles.approvalHeader}>
+              <Text style={styles.sectionTitle}>Awaiting Execution</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{approvedRequests.length}</Text>
+              </View>
+            </View>
+            
+            {approvedRequests.map((request: any) => (
+              <TouchableOpacity
+                key={request.request_id}
+                style={styles.approvalCard}
+                onPress={() => router.push(`/attendant/execute-dispatch/${request.request_id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.approvalLeft}>
+                  <View style={styles.approvalIconContainer}>
+                    <Text style={styles.approvalIcon}>✓</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.approvalCrop}>{request.crop}</Text>
+                    <Text style={styles.approvalBuyer}>Buyer: {request.buyer_name || 'TBD'}</Text>
+                  </View>
+                </View>
+                <View style={styles.approvalRight}>
+                  <Text style={styles.approvalQuantity}>{request.bag_quantity}</Text>
+                  <Text style={styles.approvalBags}>bags</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Recent Activity */}
         <View style={styles.recentContainer}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           
-          {/* Recent Entry 1 */}
-          <View style={styles.activityCard}>
-            <View style={styles.activityHeader}>
-              <View style={styles.activityLeft}>
-                <View style={styles.activityIconContainer}>
-                  <Text style={styles.activityIcon}>↓</Text>
-                </View>
-                <View>
-                  <Text style={styles.activityCrop}>Maize</Text>
-                  <Text style={styles.activityType}>Inbound</Text>
-                </View>
-              </View>
-              <View style={styles.activityRight}>
-                <Text style={styles.activityQuantity}>+50</Text>
-                <Text style={styles.activityBags}>bags</Text>
-              </View>
+          {isLoading ? (
+            <View style={styles.activityCard}>
+              <Text style={styles.activityType}>Loading...</Text>
             </View>
-            <Text style={styles.activityTime}>2 hours ago</Text>
-          </View>
-
-          {/* Recent Entry 2 */}
-          <View style={styles.activityCard}>
-            <View style={styles.activityHeader}>
-              <View style={styles.activityLeft}>
-                <View style={styles.activityIconContainer}>
-                  <Text style={styles.activityIcon}>↑</Text>
+          ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
+            stats.recentActivity.map((activity: any, index: number) => (
+              <View key={activity.eventId || index} style={styles.activityCard}>
+                <View style={styles.activityHeader}>
+                  <View style={styles.activityLeft}>
+                    <View style={styles.activityIconContainer}>
+                      <Text style={styles.activityIcon}>
+                        {activity.type === 'INBOUND' ? '↓' : '↑'}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.activityCrop}>{activity.crop}</Text>
+                      <Text style={styles.activityType}>
+                        {activity.type === 'INBOUND' ? 'Inbound' : 'Outbound'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.activityRight}>
+                    <Text style={styles.activityQuantity}>
+                      {activity.type === 'INBOUND' ? '+' : '-'}{activity.bags}
+                    </Text>
+                    <Text style={styles.activityBags}>bags</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.activityCrop}>Rice</Text>
-                  <Text style={styles.activityType}>Outbound</Text>
-                </View>
+                <Text style={styles.activityTime}>
+                  {getTimeAgo(activity.timestamp)}
+                </Text>
               </View>
-              <View style={styles.activityRight}>
-                <Text style={styles.activityQuantity}>-20</Text>
-                <Text style={styles.activityBags}>bags</Text>
-              </View>
+            ))
+          ) : (
+            <View style={styles.activityCard}>
+              <Text style={styles.activityType}>No recent activity</Text>
             </View>
-            <Text style={styles.activityTime}>5 hours ago</Text>
-          </View>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -439,5 +541,115 @@ const styles = StyleSheet.create({
   activityTime: {
     fontSize: 13,
     color: '#a8a29e',
+  },
+  stockContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  stockGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  stockCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    minWidth: '30%',
+    flex: 1,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  stockCrop: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1c1917',
+    marginBottom: 8,
+  },
+  stockQuantity: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#3d9448',
+    marginBottom: 2,
+  },
+  stockLabel: {
+    fontSize: 12,
+    color: '#78716c',
+  },
+  approvalsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  approvalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  badge: {
+    backgroundColor: '#3d9448',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  approvalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fffbeb',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#fcd34d',
+  },
+  approvalLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  approvalIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approvalIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f59e0b',
+  },
+  approvalCrop: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1c1917',
+    marginBottom: 2,
+  },
+  approvalBuyer: {
+    fontSize: 13,
+    color: '#78716c',
+  },
+  approvalRight: {
+    alignItems: 'flex-end',
+  },
+  approvalQuantity: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#f59e0b',
+  },
+  approvalBags: {
+    fontSize: 12,
+    color: '#78716c',
   },
 });

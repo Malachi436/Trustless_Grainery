@@ -45,7 +45,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error('Login error:', error instanceof Error ? error.message : 'Login failed');
-    throw new AppError(error instanceof Error ? error.message : 'Login failed', 401);
+    res.status(401).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Login failed',
+    });
   }
 };
 

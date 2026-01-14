@@ -1,9 +1,12 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import routes from './routes';
+import healthRoutes from './routes/healthRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { apiLimiter } from './middleware/rateLimiter';
 import logger from './config/logger';
 import db from './config/database';
 
@@ -11,10 +14,11 @@ import db from './config/database';
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || '4000', 10);
 
 // Middleware
 app.use(helmet()); // Security headers
+app.use(compression()); // Response compression
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   credentials: true,
@@ -33,6 +37,12 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Health check routes (no rate limiting)
+app.use('/', healthRoutes);
+
+// Apply rate limiting to all API routes
+app.use('/api', apiLimiter);
+
 // Mount API routes
 app.use('/api', routes);
 
@@ -43,7 +53,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server - Listen on all network interfaces (0.0.0.0) for mobile app access
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`
 ╔═══════════════════════════════════════════════╗
 ║   TRUSTLESS GRANARY BACKEND                   ║

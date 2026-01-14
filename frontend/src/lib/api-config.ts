@@ -9,9 +9,10 @@ import { Platform } from 'react-native';
  * - On Android emulator: Uses 10.0.2.2 (special Android emulator localhost)
  */
 function getApiUrl(): string {
-  // STATIC IP OVERRIDE: Change this to your machine's IP if needed
-  // Leave empty to auto-detect from Expo debugger host
-  const STATIC_IP = '172.20.10.3';
+  // STATIC IP OVERRIDE: Try multiple IPs for your machine
+  // The app will use the first one that works
+  const POSSIBLE_IPS = ['172.20.10.3', '192.168.109.1', '192.168.181.1'];
+  const STATIC_IP = POSSIBLE_IPS[0]; // Primary IP
   
   // Get debugger host from Expo Constants
   const { manifest } = Constants;
@@ -24,6 +25,7 @@ function getApiUrl(): string {
   
   console.log('Platform:', Platform.OS);
   console.log('Debugger Host:', debuggerHost);
+  console.log('Available Backend IPs:', POSSIBLE_IPS.join(', '));
   
   // For web, use localhost
   if (Platform.OS === 'web') {
@@ -65,6 +67,7 @@ export const API_ENDPOINTS = {
   
   // Owner
   OWNER_DASHBOARD: `${API_BASE_URL}/api/owner/dashboard`,
+  OWNER_GENESIS_STATUS: `${API_BASE_URL}/api/owner/genesis-status`,
   OWNER_GENESIS: `${API_BASE_URL}/api/owner/genesis`,
   OWNER_APPROVALS: `${API_BASE_URL}/api/owner/approvals`,
   OWNER_APPROVE: (requestId: string) => `${API_BASE_URL}/api/owner/approvals/${requestId}/approve`,
@@ -73,6 +76,8 @@ export const API_ENDPOINTS = {
   OWNER_BATCHES: `${API_BASE_URL}/api/owner/batches`,
   OWNER_TOOLS: `${API_BASE_URL}/api/owner/tools`,
   OWNER_ASSIGN_TOOL: (toolId: string) => `${API_BASE_URL}/api/owner/tools/${toolId}/assign`,
+  OWNER_BATCH_ALLOCATIONS: (requestId: string) => `${API_BASE_URL}/api/owner/requests/${requestId}/allocations`,
+  OWNER_VERIFY_QR: (batchCode: string) => `${API_BASE_URL}/api/owner/batches/verify/${encodeURIComponent(batchCode)}`,
   
   // Attendant
   ATTENDANT_HOME: `${API_BASE_URL}/api/attendant/home`,
@@ -83,6 +88,12 @@ export const API_ENDPOINTS = {
   ATTENDANT_TOOLS: `${API_BASE_URL}/api/attendant/tools`,
   ATTENDANT_RETURN_TOOL: (toolId: string) => `${API_BASE_URL}/api/attendant/tools/${toolId}/return`,
   ATTENDANT_CONFIRM_PAYMENT: (requestId: string) => `${API_BASE_URL}/api/attendant/requests/${requestId}/confirm-payment`,
+  ATTENDANT_FARMERS_WITH_RECOVERY: `${API_BASE_URL}/api/attendant/farmers-with-recovery`,
+  ATTENDANT_BATCH_SCAN: `${API_BASE_URL}/api/attendant/batch/scan`,
+  ATTENDANT_BATCH_VERIFY: (batchCode: string) => `${API_BASE_URL}/api/attendant/batch/verify/${encodeURIComponent(batchCode)}`,
+  ATTENDANT_BATCH_ALLOCATIONS: (requestId: string) => `${API_BASE_URL}/api/owner/requests/${requestId}/allocations`,
+  ATTENDANT_RECOVERY_INBOUND: `${API_BASE_URL}/api/attendant/recovery-inbound`,
+  ATTENDANT_AGGREGATED_INBOUND: `${API_BASE_URL}/api/attendant/aggregated-inbound`,
   
   // Admin
   ADMIN_CREATE_WAREHOUSE: `${API_BASE_URL}/api/admin/warehouses`,

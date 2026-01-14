@@ -1,0 +1,83 @@
+╔═══════════════════════════════════════════════════════════════╗
+║              BACKEND AUTO-RESTART GUIDE                       ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📋 USAGE OPTIONS
+
+1️⃣  Normal Start (Manual Restart Required)
+   npm start
+   - Standard startup
+   - You must restart manually if it crashes
+
+2️⃣  Auto-Restart Mode (Recommended for Long Sessions)
+   npm run start:watch
+   - Automatically restarts on crash
+   - Logs crashes to crash-log.txt
+   - Max 10 restarts before giving up
+   - Press Ctrl+C to stop
+
+3️⃣  Development Mode (Hot Reload)
+   npm run dev
+   - Auto-restarts on code changes
+   - Use during active development
+
+
+📊 HOW AUTO-RESTART WORKS
+
+✅ Backend runs normally
+❌ Crash detected (exit code ≠ 0)
+📝 Logs crash details to crash-log.txt
+⏳ Waits 3 seconds
+🔄 Restarts backend automatically
+🛑 Stops after 10 consecutive crashes
+
+
+📁 CRASH LOGS
+
+Location: backend/crash-log.txt
+Contains:
+  - Timestamp of crash
+  - Exit code and signal
+  - Restart count
+
+Old logs are archived as: crash-log-[timestamp].txt
+
+
+⚙️  CONFIGURATION
+
+Edit restart-on-crash.js to customize:
+
+const MAX_RESTARTS = 10;     // Change max restart attempts
+const RESTART_DELAY = 3000;  // Change delay (milliseconds)
+
+
+🛡️  SAFEGUARDS
+
+✓ Maximum restart limit prevents infinite loops
+✓ Graceful shutdown on Ctrl+C
+✓ Crash logs for debugging
+✓ Archives old logs on startup
+✓ Force kill after 5 seconds if graceful shutdown fails
+
+
+💡 WHEN TO USE
+
+✓ Production/staging environment
+✓ Overnight testing
+✓ Demo presentations
+✓ When you're away from keyboard
+
+✗ Don't use for active development (use npm run dev instead)
+
+
+🔍 TROUBLESHOOTING
+
+Problem: Backend keeps crashing immediately
+Solution: Check crash-log.txt for details
+Action: Fix the underlying issue before restarting
+
+Problem: Can't stop with Ctrl+C
+Solution: Force kill with: taskkill /F /IM node.exe
+
+Problem: Port already in use
+Solution: Kill existing node processes first
